@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Submissions — AuditEdge Skillternship</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script><script src="js/app.js"></script>
+<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#0A1628"></head>
+<body>
+<div class="bg-mesh"></div>
+<div id="appShell" class="app-shell" style="opacity:0;transition:opacity 0.3s">
+  <div id="sidebarContainer"></div>
+  <div class="main-content">
+    <div id="topbarContainer"></div>
+    <div class="page-body" id="pageBody"><div class="loader"><div class="spinner"></div></div></div>
+  </div>
+</div>
+<div class="notif-panel" id="notifPanel">
+  <div class="notif-panel-head"><span class="notif-panel-title">Notifications</span><button onclick="toggleNotifs()" style="background:none;border:none;color:var(--muted);cursor:pointer">✕</button></div>
+  <div class="notif-list" id="notifList"></div>
+</div>
+<div class="toast-container" id="toastContainer"></div>
+<script>
+async function init() {
+  const auth = await requireAuth(); if (!auth) return;
+  const { profile, user } = auth;
+  const subs = await getSubmissions(user.id);
+  const progress = await getProgress(user.id);
+  const notifs = await getNotifications(user.id);
+  const unread = notifs.filter(n=>!n.read).length;
+  document.getElementById('sidebarContainer').innerHTML = renderSidebar('submissions', profile);
+  document.getElementById('topbarContainer').innerHTML = renderTopbar('My Submissions', profile, unread);
+
+  const reviewed = subs.filter(s=>s.status==='reviewed');
+  const avgScore = reviewed.length ? Math.round(reviewed.reduce((a,s)=>a+(s.score||0),0)/reviewed.length) : null;
+
+  document.getElementById('pageBody').innerHTML = `
+    <div style="margin-bottom:1.5rem">
+      <h1 class="font-head" style="font-size:1.5rem;font-weight:800;margin-bottom:4px">My Submissions</h1>
+      <p class="text-muted text-sm">${subs.length} total · ${reviewed.length} reviewed ${avgScore!==null?`· Avg score: <strong style="color:var(--teal)">${avgScore}%</strong>`:''}</p>
+    </div>
+    ${subs.length === 0 ? `<div class="card" style="text-align:center;padding:3rem"><div style="font-size:3rem;margin-bottom:1rem">📝</div><h2 class="font-head" style="margin-bottom:0.5rem">No submissions yet</h2><p class="text-muted">Head to Programme Weeks to start submitting your work.</p><a href="modules.html" class="btn btn-primary" style="width:auto;margin-top:1rem">Go to Weeks →</a></div>` :
+    subs.map(s => `
+    <div class="card" style="margin-bottom:0.75rem">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:6px">
+            <span class="font-mono text-teal text-xs">WEEK ${s.week_number}</span>
+            <span class="week-badge ${s.status==='reviewed'?'badge-completed':s.status==='needs_revision'?'badge-in_progress':'badge-available'}">${s.status.replace('_',' ')}</span>
+            ${s.score!==null?`<span class="score-pill ${scoreClass(s.score)}">${s.score}%</span>`:''}
+          </div>
+          <div class="font-bold" style="margin-bottom:4px">${s.task_title}</div>
+          ${s.content?`<div class="text-muted text-sm" style="margin-bottom:8px;line-height:1.5">${s.content.substring(0,200)}${s.content.length>200?'...':''}</div>`:''}
+          ${s.feedback?`<div style="padding:8px 12px;background:rgba(0,201,167,0.06);border-left:3px solid var(--teal);border-radius:0 6px 6px 0;font-size:0.82rem;margin-top:8px"><strong style="color:var(--teal)">Instructor feedback:</strong> ${s.feedback}</div>`:''}
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+          ${s.file_url?`<a href="${s.file_url}" target="_blank" class="btn btn-ghost btn-sm">${Icons.external} File</a>`:''}
+          <span class="text-muted text-xs">${timeAgo(s.submitted_at)}</span>
+        </div>
+      </div>
+    </div>`).join('')}
+  `;
+  document.getElementById('appShell').style.opacity = '1';
+}
+init();
+</script>
+</body>
+</html>

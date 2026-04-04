@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>AuditEdge IT Audit Skillternship</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0A1628">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script>
+<style>
+.login-split { display:flex; min-height:100vh; }
+.login-left {
+  flex:1; background:var(--navy2); border-right:1px solid var(--border);
+  display:flex; flex-direction:column; justify-content:space-between;
+  padding:3rem; position:relative; overflow:hidden;
+}
+.login-left::before {
+  content:''; position:absolute; inset:0; z-index:0;
+  background:
+    radial-gradient(ellipse 70% 60% at 20% 80%, rgba(0,201,167,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 80% 10%, rgba(75,158,255,0.07) 0%, transparent 60%);
+}
+.login-right {
+  width:480px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  padding:2rem; background:var(--navy);
+}
+.hero-tag { font-family:var(--font-mono); font-size:0.75rem; color:var(--teal); letter-spacing:0.12em; text-transform:uppercase; margin-bottom:1rem; position:relative; z-index:1; }
+.hero-title { font-family:var(--font-head); font-size:3rem; font-weight:800; line-height:1.15; margin-bottom:1rem; position:relative; z-index:1; }
+.hero-title span { background:linear-gradient(135deg,var(--teal),var(--blue)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.hero-sub { color:var(--muted); font-size:0.95rem; line-height:1.65; max-width:400px; position:relative; z-index:1; }
+.feature-list { display:flex; flex-direction:column; gap:0.75rem; margin-top:2rem; position:relative; z-index:1; }
+.feature-item { display:flex; align-items:flex-start; gap:10px; font-size:0.88rem; }
+.feature-dot { width:6px; height:6px; border-radius:50%; background:var(--teal); flex-shrink:0; margin-top:7px; }
+.feature-text { color:var(--off); line-height:1.5; }
+.cohort-badge { display:inline-flex; align-items:center; gap:8px; background:rgba(0,201,167,0.08); border:1px solid rgba(0,201,167,0.2); border-radius:50px; padding:6px 16px; font-size:0.78rem; color:var(--teal); position:relative; z-index:1; }
+.cohort-dot { width:6px; height:6px; border-radius:50%; background:var(--teal); animation:pulse 2s infinite; }
+@media (max-width:800px) {
+  .login-left { display:none; }
+  .login-right { width:100%; }
+}
+</style>
+</head>
+<body>
+<div class="bg-mesh"></div>
+<div class="login-split">
+
+  <!-- Left panel — branding -->
+  <div class="login-left">
+    <div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:3rem">
+        <div class="logo-mark">AE</div>
+        <div class="logo-text">AuditEdge Corp<span>IT Audit Skillternship</span></div>
+      </div>
+      <div class="hero-tag">10-Week Programme · 2024 Cohort</div>
+      <h1 class="hero-title">Learn IT Audit by<br><span>doing IT Audit</span></h1>
+      <p class="hero-sub">A fully simulated IT audit engagement at a fictional $520M financial services company. Real data, real findings, real experience.</p>
+      <div class="feature-list">
+        <div class="feature-item"><div class="feature-dot"></div><div class="feature-text"><strong>SOX ITGC Testing</strong> — logical access, change management, computer operations</div></div>
+        <div class="feature-item"><div class="feature-dot"></div><div class="feature-text"><strong>SOC 2 Readiness</strong> — Trust Services Criteria gap analysis and vendor risk</div></div>
+        <div class="feature-item"><div class="feature-dot"></div><div class="feature-text"><strong>Cybersecurity Review</strong> — AWS CloudTrail, NIST CSF, vulnerability management</div></div>
+        <div class="feature-item"><div class="feature-dot"></div><div class="feature-text"><strong>49 Simulation Artifacts</strong> — real-feel policies, data files, and workpaper templates</div></div>
+        <div class="feature-item"><div class="feature-dot"></div><div class="feature-text"><strong>Certificate of Completion</strong> — shareable credential for your portfolio</div></div>
+      </div>
+    </div>
+    <div class="cohort-badge">
+      <div class="cohort-dot"></div>
+      Invite-only programme · Cohort 2024
+    </div>
+  </div>
+
+  <!-- Right panel — auth form -->
+  <div class="login-right">
+    <div style="width:100%;max-width:380px">
+      <div id="signInView" style="animation:fadeIn 0.4s ease">
+        <h2 style="font-family:var(--font-head);font-size:1.6rem;font-weight:800;margin-bottom:0.3rem">Welcome back</h2>
+        <p style="color:var(--muted);font-size:0.88rem;margin-bottom:2rem">Sign in to continue your Skillternship</p>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" id="signInEmail" class="form-input" placeholder="you@example.com" autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" id="signInPassword" class="form-input" placeholder="Your password" autocomplete="current-password">
+        </div>
+        <button class="btn btn-primary" id="signInBtn" onclick="handleSignIn()">Sign In →</button>
+        <div style="display:flex;justify-content:space-between;margin-top:1rem">
+          <a href="#" onclick="showView('forgotPw')" style="font-size:0.8rem;color:var(--muted)">Forgot password?</a>
+          <a href="#" onclick="showView('acceptInvite')" style="font-size:0.8rem;color:var(--teal)">Set up account</a>
+        </div>
+      </div>
+
+      <div id="acceptInviteView" class="hidden" style="animation:fadeIn 0.4s ease">
+        <h2 style="font-family:var(--font-head);font-size:1.5rem;font-weight:800;margin-bottom:0.3rem">Set up your account</h2>
+        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:2rem">You've been invited. Create your password to begin.</p>
+        <div class="form-group">
+          <label class="form-label">Full Name</label>
+          <input type="text" id="inviteName" class="form-input" placeholder="Your full name">
+        </div>
+        <div class="form-group">
+          <label class="form-label">New Password</label>
+          <input type="password" id="invitePassword" class="form-input" placeholder="Min. 8 characters">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Confirm Password</label>
+          <input type="password" id="invitePasswordConfirm" class="form-input" placeholder="Repeat password">
+        </div>
+        <button class="btn btn-primary" onclick="handleSetPassword()">Activate Account →</button>
+        <p style="text-align:center;margin-top:1rem;font-size:0.8rem"><a href="#" onclick="showView('signIn')" style="color:var(--muted)">← Back to sign in</a></p>
+      </div>
+
+      <div id="forgotPwView" class="hidden" style="animation:fadeIn 0.4s ease">
+        <h2 style="font-family:var(--font-head);font-size:1.5rem;font-weight:800;margin-bottom:0.3rem">Reset password</h2>
+        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:2rem">We'll send a reset link to your email.</p>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" id="resetEmail" class="form-input" placeholder="you@example.com">
+        </div>
+        <button class="btn btn-primary" onclick="handleReset()">Send Reset Link</button>
+        <p style="text-align:center;margin-top:1rem;font-size:0.8rem"><a href="#" onclick="showView('signIn')" style="color:var(--muted)">← Back to sign in</a></p>
+      </div>
+
+      <div id="successView" class="hidden" style="text-align:center;animation:fadeIn 0.4s ease">
+        <div style="font-size:3rem;margin-bottom:1rem">✅</div>
+        <h2 style="font-family:var(--font-head);font-size:1.3rem;font-weight:800;margin-bottom:0.5rem" id="successTitle">Done!</h2>
+        <p style="color:var(--muted);margin-bottom:1.5rem" id="successMsg"></p>
+        <button class="btn btn-primary" onclick="showView('signIn')">Sign In →</button>
+      </div>
+
+      <div id="authError" class="hidden" style="background:rgba(229,83,75,0.1);border:1px solid rgba(229,83,75,0.3);border-radius:8px;padding:0.75rem 1rem;margin-top:1rem;font-size:0.85rem;color:#E5534B"></div>
+    </div>
+  </div>
+</div>
+<div class="toast-container" id="toastContainer"></div>
+<script>
+function showView(view) {
+  ['signInView','acceptInviteView','forgotPwView','successView'].forEach(v => {
+    document.getElementById(v+'View'||v).classList.add('hidden');
+  });
+  document.getElementById(view+'View').classList.remove('hidden');
+  document.getElementById('authError').classList.add('hidden');
+}
+function showError(msg) {
+  const el=document.getElementById('authError'); el.textContent=msg; el.classList.remove('hidden');
+}
+async function handleSignIn() {
+  const email=document.getElementById('signInEmail').value.trim();
+  const password=document.getElementById('signInPassword').value;
+  if (!email||!password){showError('Please enter email and password.');return;}
+  const btn=document.getElementById('signInBtn');
+  btn.disabled=true; btn.textContent='Signing in...';
+  try {
+    const {data,error}=await sb.auth.signInWithPassword({email,password});
+    if(error)throw error;
+    const profile=await getProfile(data.user.id);
+    window.location.href=profile.role==='instructor'?'instructor.html':'dashboard.html';
+  } catch(e){showError(e.message||'Sign in failed. Check your credentials.');btn.disabled=false;btn.textContent='Sign In →';}
+}
+async function handleSetPassword() {
+  const name=document.getElementById('inviteName').value.trim();
+  const pw=document.getElementById('invitePassword').value;
+  const pw2=document.getElementById('invitePasswordConfirm').value;
+  if(!name){showError('Please enter your full name.');return;}
+  if(pw.length<8){showError('Password must be at least 8 characters.');return;}
+  if(pw!==pw2){showError('Passwords do not match.');return;}
+  try {
+    const {error}=await sb.auth.updateUser({password:pw,data:{full_name:name}});
+    if(error)throw error;
+    const user=await getUser();
+    if(user) await sb.from('profiles').update({full_name:name}).eq('id',user.id);
+    document.getElementById('successTitle').textContent='Account activated!';
+    document.getElementById('successMsg').textContent='Your account is ready. Sign in to start your Skillternship.';
+    showView('success');
+  } catch(e){showError(e.message);}
+}
+async function handleReset() {
+  const email=document.getElementById('resetEmail').value.trim();
+  if(!email){showError('Please enter your email.');return;}
+  try {
+    const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin+'/index.html'});
+    if(error)throw error;
+    document.getElementById('successTitle').textContent='Check your email';
+    document.getElementById('successMsg').textContent='A reset link has been sent to '+email;
+    showView('success');
+  } catch(e){showError(e.message);}
+}
+window.addEventListener('load', async()=>{
+  const hash=window.location.hash;
+  if(hash.includes('access_token')){
+    const {data:{session}}=await sb.auth.getSession();
+    if(session)showView('acceptInvite');
+    return;
+  }
+  const user=await getUser();
+  if(user){
+    const profile=await getProfile(user.id).catch(()=>null);
+    if(profile) window.location.href=profile.role==='instructor'?'instructor.html':'dashboard.html';
+  }
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!document.getElementById('signInView').classList.contains('hidden'))handleSignIn();
+});
+</script>
+</body>
+</html>

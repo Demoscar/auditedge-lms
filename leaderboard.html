@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Leaderboard — AuditEdge Skillternship</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script><script src="js/app.js"></script>
+<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#0A1628"></head>
+<body>
+<div class="bg-mesh"></div>
+<div id="appShell" class="app-shell" style="opacity:0;transition:opacity 0.3s">
+  <div id="sidebarContainer"></div>
+  <div class="main-content">
+    <div id="topbarContainer"></div>
+    <div class="page-body" id="pageBody"><div class="loader"><div class="spinner"></div></div></div>
+  </div>
+</div>
+<div class="notif-panel" id="notifPanel">
+  <div class="notif-panel-head"><span class="notif-panel-title">Notifications</span><button onclick="toggleNotifs()" style="background:none;border:none;color:var(--muted);cursor:pointer">✕</button></div>
+  <div class="notif-list" id="notifList"></div>
+</div>
+<div class="toast-container" id="toastContainer"></div>
+<script>
+async function init() {
+  const ctx = await buildShell('leaderboard','Leaderboard');
+  if (!ctx) return;
+  const { user } = ctx;
+
+  // Fetch all mentee profiles + their progress
+  const { data: mentees } = await sb.from('profiles').select('*').eq('role','mentee');
+  const allProg = {};
+  for (const m of (mentees||[])) {
+    const { data } = await sb.from('progress').select('*').eq('user_id',m.id);
+    allProg[m.id] = data||[];
+  }
+
+  const ranked = (mentees||[])
+    .map(m => ({ ...m, progress: calcOverallProgress(allProg[m.id]||[]), avgScore: calcAvgScore(allProg[m.id]||[]), completed: (allProg[m.id]||[]).filter(p=>p.status==='completed').length }))
+    .sort((a,b) => b.progress - a.progress || (b.avgScore||0) - (a.avgScore||0));
+
+  const medalEmoji = ['🥇','🥈','🥉'];
+  const myPos = ranked.findIndex(m=>m.id===user.id) + 1;
+
+  document.getElementById('pageBody').innerHTML = `
+    <div style="margin-bottom:1.5rem">
+      <h1 class="font-head" style="font-size:1.5rem;font-weight:800;margin-bottom:4px">Leaderboard</h1>
+      <p class="text-muted text-sm">Cohort 2024 · Ranked by completion % then average score · ${ranked.length} participants</p>
+    </div>
+
+    <!-- Top 3 podium -->
+    ${ranked.length >= 3 ? `
+    <div style="display:flex;align-items:flex-end;justify-content:center;gap:1rem;margin-bottom:2rem">
+      ${[ranked[1], ranked[0], ranked[2]].map((m,podiumIdx) => {
+        const heights = ['140px','180px','120px'];
+        const colors  = ['var(--muted)','var(--gold)','#CD7F32'];
+        const ranks   = [2,1,3];
+        return `
+        <div style="display:flex;flex-direction:column;align-items:center;gap:0.5rem;width:120px">
+          <div class="user-avatar" style="width:44px;height:44px;font-size:1rem;background:linear-gradient(135deg,#7B2D8B,#4361EE)">${m.full_name.charAt(0)}</div>
+          <div style="font-size:0.82rem;font-weight:600;text-align:center;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.id===user.id?'You 🙋':m.full_name.split(' ')[0]}</div>
+          <div style="font-size:0.75rem;color:var(--muted)">${m.progress}% · ${scoreLabel(m.avgScore)}</div>
+          <div style="width:100%;height:${heights[podiumIdx]};background:linear-gradient(to top,${colors[podiumIdx]}22,${colors[podiumIdx]}11);border:1px solid ${colors[podiumIdx]}44;border-bottom:none;border-radius:8px 8px 0 0;display:flex;align-items:flex-start;justify-content:center;padding-top:12px">
+            <span style="font-size:1.8rem">${medalEmoji[ranks[podiumIdx]-1]}</span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>` : ''}
+
+    <!-- Full table -->
+    <div class="card">
+      ${ranked.map((m,i) => `
+      <div class="lb-row ${m.id===user.id?'me':''}" style="animation:fadeIn 0.3s ${i*0.04}s both">
+        <div class="lb-rank">${i<3?medalEmoji[i]:'#'+(i+1)}</div>
+        <div class="lb-avatar" style="background:linear-gradient(135deg,#7B2D8B,#4361EE)">${m.full_name.charAt(0)}</div>
+        <div class="lb-name">${m.id===user.id?`<span style="color:var(--teal)">${m.full_name} <span style="font-size:0.72rem">(you)</span></span>`:m.full_name}</div>
+        <div class="lb-prog">
+          <div style="display:flex;justify-content:space-between;font-size:0.72rem;margin-bottom:2px">
+            <span class="text-muted">${m.completed}/10 weeks</span>
+            <span style="color:var(--teal)">${m.progress}%</span>
+          </div>
+          <div class="progress-bar-wrap" style="height:5px"><div class="progress-bar-fill" style="width:${m.progress}%"></div></div>
+        </div>
+        <div class="lb-score"><span class="score-pill ${scoreClass(m.avgScore)}">${scoreLabel(m.avgScore)}</span></div>
+      </div>`).join('')}
+      ${!ranked.length ? `<div class="empty-state"><span class="empty-state-icon">🏆</span><div class="empty-state-desc">No participants enrolled yet</div></div>` : ''}
+    </div>
+    ${myPos > 0 ? `<p class="text-muted text-xs text-center" style="margin-top:1rem">Your position: #${myPos} of ${ranked.length}</p>` : ''}
+  `;
+}
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Announcements — AuditEdge Skillternship</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script><script src="js/app.js"></script>
+<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#0A1628"></head>
+<body>
+<div class="bg-mesh"></div>
+<div id="appShell" class="app-shell" style="opacity:0;transition:opacity 0.3s">
+  <div id="sidebarContainer"></div>
+  <div class="main-content">
+    <div id="topbarContainer"></div>
+    <div class="page-body" id="pageBody"><div class="loader"><div class="spinner"></div></div></div>
+  </div>
+</div>
+<div class="notif-panel" id="notifPanel">
+  <div class="notif-panel-head"><span class="notif-panel-title">Notifications</span><button onclick="toggleNotifs()" style="background:none;border:none;color:var(--muted);cursor:pointer">✕</button></div>
+  <div class="notif-list" id="notifList"></div>
+</div>
+<!-- New announcement modal (instructor only) -->
+<div class="modal-overlay" id="annModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="annModalTitle">New Announcement</div>
+      <button class="modal-close" onclick="closeAnnModal()">✕</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Title</label>
+      <input type="text" class="form-input" id="annTitle" placeholder="e.g. Week 3 kick-off">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Message</label>
+      <textarea class="submission-textarea" id="annBody" style="min-height:120px" placeholder="Write your announcement..."></textarea>
+    </div>
+    <div style="display:flex;gap:1rem">
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Tag to Week (optional)</label>
+        <select class="form-input" id="annWeek">
+          <option value="">No week tag</option>
+          ${Array.from({length:10},(_,i)=>`<option value="${i+1}">Week ${i+1}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="display:flex;align-items:flex-end;gap:8px;padding-bottom:2px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;color:var(--muted);cursor:pointer">
+          <input type="checkbox" id="annPinned" style="accent-color:var(--gold)"> Pin to top
+        </label>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="saveAnnouncement()">Post Announcement</button>
+  </div>
+</div>
+<div class="toast-container" id="toastContainer"></div>
+<script>
+let isInstructor = false, editingId = null;
+
+async function init() {
+  const ctx = await buildShell('announcements','Announcements');
+  if (!ctx) return;
+  isInstructor = ctx.profile.role === 'instructor';
+  await renderPage();
+}
+
+async function renderPage() {
+  const { data: anns } = await sb.from('announcements').select('*, profiles(full_name)').order('pinned',{ascending:false}).order('created_at',{ascending:false});
+
+  document.getElementById('pageBody').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem">
+      <div>
+        <h1 class="font-head" style="font-size:1.5rem;font-weight:800;margin-bottom:4px">Announcements</h1>
+        <p class="text-muted text-sm">Updates and notices from your instructor</p>
+      </div>
+      ${isInstructor ? `<button class="btn btn-primary" style="width:auto;margin:0" onclick="openAnnModal()">+ New Announcement</button>` : ''}
+    </div>
+    ${!anns?.length ? `
+    <div class="empty-state">
+      <span class="empty-state-icon">📢</span>
+      <div class="empty-state-title">No announcements yet</div>
+      <div class="empty-state-desc">${isInstructor ? 'Post your first announcement to communicate with participants.' : 'Check back here for updates from your instructor.'}</div>
+      ${isInstructor ? `<button class="btn btn-primary" style="width:auto;margin:0 auto" onclick="openAnnModal()">Post First Announcement</button>` : ''}
+    </div>` :
+    (anns||[]).map(a => `
+    <div class="announcement-card ${a.pinned?'pinned':''} fade-in">
+      <div class="ann-header">
+        <div>
+          ${a.pinned ? `<span class="pin-badge">📌 Pinned</span> ` : ''}
+          <div class="ann-title">${a.title}</div>
+          <div class="ann-meta">${a.profiles?.full_name||'Instructor'} · ${timeAgo(a.created_at)} ${a.week_tag?`<span class="ann-week-tag" style="margin-left:6px">Week ${a.week_tag}</span>`:''}</div>
+        </div>
+        ${isInstructor ? `
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn btn-ghost btn-sm" onclick="editAnn(${JSON.stringify(a).replace(/"/g,'&quot;')})">Edit</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteAnn('${a.id}')">Delete</button>
+        </div>` : ''}
+      </div>
+      <div class="ann-body">${a.body.replace(/\n/g,'<br>')}</div>
+    </div>`).join('')}
+  `;
+}
+
+function openAnnModal(ann=null) {
+  editingId = ann?.id || null;
+  document.getElementById('annModalTitle').textContent = ann ? 'Edit Announcement' : 'New Announcement';
+  document.getElementById('annTitle').value = ann?.title || '';
+  document.getElementById('annBody').value = ann?.body || '';
+  document.getElementById('annWeek').value = ann?.week_tag || '';
+  document.getElementById('annPinned').checked = ann?.pinned || false;
+  document.getElementById('annModal').classList.add('open');
+}
+function closeAnnModal() { document.getElementById('annModal').classList.remove('open'); editingId = null; }
+function editAnn(a) { openAnnModal(a); }
+
+async function saveAnnouncement() {
+  const title = document.getElementById('annTitle').value.trim();
+  const body  = document.getElementById('annBody').value.trim();
+  const week_tag = parseInt(document.getElementById('annWeek').value) || null;
+  const pinned = document.getElementById('annPinned').checked;
+  if (!title || !body) { toast('Please fill in title and message','error'); return; }
+  const user = await getUser();
+  try {
+    if (editingId) {
+      await sb.from('announcements').update({title,body,week_tag,pinned,updated_at:new Date().toISOString()}).eq('id',editingId);
+    } else {
+      await sb.from('announcements').insert({title,body,week_tag,pinned,author_id:user.id});
+    }
+    closeAnnModal();
+    toast(editingId ? 'Announcement updated' : 'Announcement posted!','success');
+    await renderPage();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function deleteAnn(id) {
+  if (!confirm('Delete this announcement?')) return;
+  await sb.from('announcements').delete().eq('id',id);
+  toast('Announcement deleted','info');
+  await renderPage();
+}
+
+init();
+</script>
+</body>
+</html>

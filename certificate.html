@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Certificate — AuditEdge Skillternship</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script><script src="js/app.js"></script>
+<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#0A1628"></head>
+<body>
+<div class="bg-mesh"></div>
+<div id="appShell" class="app-shell" style="opacity:0;transition:opacity 0.3s">
+  <div id="sidebarContainer"></div>
+  <div class="main-content">
+    <div id="topbarContainer"></div>
+    <div class="page-body" id="pageBody"><div class="loader"><div class="spinner"></div></div></div>
+  </div>
+</div>
+<div class="notif-panel" id="notifPanel"><div class="notif-panel-head"><span class="notif-panel-title">Notifications</span><button onclick="toggleNotifs()" style="background:none;border:none;color:var(--muted);cursor:pointer">✕</button></div><div class="notif-list" id="notifList"></div></div><div class="toast-container" id="toastContainer"></div>
+<script>
+async function init() {
+  const auth = await requireAuth(); if (!auth) return;
+  const { profile, user } = auth;
+  const progress = await getProgress(user.id);
+  const completedAll = progress.every(p=>p.status==='completed');
+  const avgScore = calcAvgScore(progress);
+  document.getElementById('sidebarContainer').innerHTML = renderSidebar('certificate', profile);
+  document.getElementById('topbarContainer').innerHTML = renderTopbar('Certificate', profile, 0);
+
+  // Check/create certificate record
+  let cert = null;
+  if (completedAll) {
+    const { data } = await sb.from('certificates').select('*').eq('user_id', user.id).single();
+    if (data) {
+      cert = data;
+    } else {
+      const { data: newCert } = await sb.from('certificates').insert({
+        user_id: user.id, final_score: avgScore
+      }).select().single();
+      cert = newCert;
+    }
+  }
+
+  const today = new Date().toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
+
+  document.getElementById('pageBody').innerHTML = completedAll ? `
+    <div style="margin-bottom:1.5rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem">
+      <div>
+        <h1 class="font-head" style="font-size:1.5rem;font-weight:800;margin-bottom:4px">Your Certificate</h1>
+        <p class="text-muted text-sm">Programme completed · ${today}</p>
+      </div>
+      <button onclick="window.print()" class="btn btn-ghost btn-sm">${Icons.download} Print / Save PDF</button>
+    </div>
+    <div class="cert-container" id="certificate">
+      <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--teal),var(--blue),var(--purple))"></div>
+      <div class="cert-logo">AUDITEDGE CORP  ·  IT AUDIT SKILLTERNSHIP  ·  2024</div>
+      <div class="cert-title">Certificate of Completion</div>
+      <div class="cert-heading">Awarded to</div>
+      <div class="cert-name">${profile.full_name}</div>
+      <div class="cert-desc">
+        Has successfully completed the AuditEdge Corp IT Audit Skillternship, a rigorous 10-week simulated IT audit programme covering SOX ITGC testing, SOC 2 readiness, cybersecurity review, and NIST CSF assessment.
+      </div>
+      <div class="cert-meta">
+        ${avgScore !== null ? `<div class="cert-meta-item"><div class="cert-meta-val" style="color:var(--teal)">${avgScore}%</div><div class="cert-meta-lbl">Final Score</div></div>` : ''}
+        <div class="cert-meta-item"><div class="cert-meta-val">10</div><div class="cert-meta-lbl">Weeks</div></div>
+        <div class="cert-meta-item"><div class="cert-meta-val">${today}</div><div class="cert-meta-lbl">Issued</div></div>
+      </div>
+      <div style="display:flex;justify-content:space-around;margin:2rem 0;padding:1.5rem 0;border-top:1px solid rgba(255,255,255,0.1);border-bottom:1px solid rgba(255,255,255,0.1)">
+        <div style="text-align:center">
+          <div style="font-family:var(--font-head);font-size:1.1rem;font-weight:700;margin-bottom:4px">IT Audit Lead</div>
+          <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em">Instructor</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-family:var(--font-head);font-size:1.1rem;font-weight:700;margin-bottom:4px">AuditEdge Corp</div>
+          <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em">Organisation</div>
+        </div>
+      </div>
+      ${cert ? `<div class="cert-code">Certificate ID: ${cert.certificate_code}</div>` : ''}
+    </div>
+    <div style="text-align:center;margin-top:1.5rem">
+      <p class="text-muted text-sm">Share your achievement · Certificate ID can be verified by employers</p>
+    </div>
+  ` : `
+    <div class="card" style="text-align:center;padding:3rem;max-width:500px;margin:0 auto">
+      <div style="font-size:3rem;margin-bottom:1rem">🎓</div>
+      <h2 class="font-head" style="margin-bottom:0.75rem">Almost there!</h2>
+      <p class="text-muted" style="margin-bottom:1.5rem;line-height:1.6">Complete all 10 weeks of the programme to unlock your Certificate of Completion.</p>
+      <div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:1rem;margin-bottom:1.5rem">
+        <div style="display:flex;justify-content:space-between;margin-bottom:0.5rem">
+          <span class="text-sm text-muted">Progress</span>
+          <span class="text-sm font-bold">${progress.filter(p=>p.status==='completed').length} / 10 weeks</span>
+        </div>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${calcOverallProgress(progress)}%"></div></div>
+      </div>
+      <a href="modules.html" class="btn btn-primary" style="width:auto;margin:0">Continue Programme →</a>
+    </div>
+  `;
+  document.getElementById('appShell').style.opacity = '1';
+}
+init();
+</script>
+<style>
+@media print {
+  .sidebar, .main-content > div:first-child, .topbar, #pageBody > *:not(.cert-container), .bg-mesh { display: none !important; }
+  .main-content { margin-left: 0; }
+  .cert-container { border-radius: 0; box-shadow: none; page-break-inside: avoid; }
+  body { background: white; }
+}
+</style>
+</body>
+</html>

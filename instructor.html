@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Instructor Dashboard — AuditEdge Skillternship</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script><script src="js/app.js"></script>
+<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#0A1628"></head>
+<body>
+<div class="bg-mesh"></div>
+<div id="appShell" class="app-shell" style="opacity:0;transition:opacity 0.3s">
+  <div id="sidebarContainer"></div>
+  <div class="main-content">
+    <div id="topbarContainer"></div>
+    <div class="page-body" id="pageBody"><div class="loader"><div class="spinner"></div></div></div>
+  </div>
+</div>
+<div class="notif-panel" id="notifPanel"><div class="notif-panel-head"><span class="notif-panel-title">Notifications</span><button onclick="toggleNotifs()" style="background:none;border:none;color:var(--muted);cursor:pointer">✕</button></div><div class="notif-list" id="notifList"></div></div><!-- Grade submission modal -->
+<div class="modal-overlay" id="gradeModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Review Submission</div>
+      <button class="modal-close" onclick="closeGradeModal()">✕</button>
+    </div>
+    <div id="gradeSubmissionInfo" style="margin-bottom:1.2rem"></div>
+    <div class="form-group">
+      <label class="form-label">Score (0–100)</label>
+      <input type="number" class="form-input" id="gradeScore" min="0" max="100" placeholder="e.g. 82">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Feedback</label>
+      <textarea class="submission-textarea" id="gradeFeedback" style="min-height:100px" placeholder="Write feedback for the participant..."></textarea>
+    </div>
+    <div style="display:flex;gap:0.75rem">
+      <button class="btn btn-primary" style="width:auto;margin:0" onclick="submitGrade('reviewed')">Save Grade</button>
+      <button class="btn btn-ghost" onclick="submitGrade('needs_revision')">Needs Revision</button>
+    </div>
+  </div>
+</div>
+<!-- Send notification modal -->
+<div class="modal-overlay" id="notifModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Send Notification</div>
+      <button class="modal-close" onclick="document.getElementById('notifModal').classList.remove('open')">✕</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Recipient</label>
+      <select class="form-input" id="notifRecipient">
+        <option value="all">All Mentees</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Title</label>
+      <input type="text" class="form-input" id="notifTitle" placeholder="e.g. Week 3 deadline reminder">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Message</label>
+      <textarea class="submission-textarea" id="notifBody" style="min-height:90px" placeholder="Your message..."></textarea>
+    </div>
+    <button class="btn btn-primary" onclick="sendNotification()">Send Notification</button>
+  </div>
+</div>
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+let mentees = [], allProgress = {}, allSubmissions = [], pendingSubmission = null, activeTab = 'overview';
+
+async function init() {
+  const auth = await requireAuth(true); if (!auth) return;
+  const { profile } = auth;
+  document.getElementById('sidebarContainer').innerHTML = renderSidebar('instructor', profile);
+  document.getElementById('topbarContainer').innerHTML = renderTopbar('Instructor Dashboard', profile, 0);
+  await loadData();
+  renderInstructor();
+  document.getElementById('appShell').style.opacity = '1';
+}
+
+async function loadData() {
+  const { data: profiles } = await sb.from('profiles').select('*').eq('role','mentee').order('joined_at');
+  mentees = profiles || [];
+  for (const m of mentees) {
+    const { data: prog } = await sb.from('progress').select('*').eq('user_id', m.id).order('week_number');
+    allProgress[m.id] = prog || [];
+  }
+  const { data: subs } = await sb.from('submissions').select('*').order('submitted_at', {ascending:false});
+  allSubmissions = subs || [];
+}
+
+function renderInstructor() {
+  const totalMentees = mentees.length;
+  const avgCompletion = totalMentees ? Math.round(mentees.reduce((a,m) => a + calcOverallProgress(allProgress[m.id]||[]), 0) / totalMentees) : 0;
+  const pendingSubs = allSubmissions.filter(s=>s.status==='submitted').length;
+  const allScores = mentees.map(m=>calcAvgScore(allProgress[m.id]||[])).filter(s=>s!==null);
+  const cohortAvg = allScores.length ? Math.round(allScores.reduce((a,b)=>a+b,0)/allScores.length) : null;
+
+  document.getElementById('pageBody').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem">
+      <div>
+        <h1 class="font-head" style="font-size:1.5rem;font-weight:800;margin-bottom:4px">Instructor Dashboard</h1>
+        <p class="text-muted text-sm">IT Audit Skillternship · Cohort 2024</p>
+      </div>
+      <div style="display:flex;gap:0.75rem;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('notifModal').classList.add('open');loadNotifRecipients()">
+          ${Icons.mail} Send Notification
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="loadData().then(renderInstructor)">${Icons.refresh} Refresh</button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stat-grid" style="margin-bottom:1.5rem">
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(0,201,167,0.12);color:var(--teal)">${Icons.users}</div>
+        <div class="stat-value">${totalMentees}</div>
+        <div class="stat-label">Enrolled Mentees</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(75,158,255,0.12);color:var(--blue)">${Icons.chart}</div>
+        <div class="stat-value">${avgCompletion}%</div>
+        <div class="stat-label">Avg Cohort Progress</div>
+        <div class="progress-bar-wrap mt-1"><div class="progress-bar-fill" style="width:${avgCompletion}%"></div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(244,168,58,0.12);color:var(--gold)">${Icons.tasks}</div>
+        <div class="stat-value" style="${pendingSubs>0?'color:var(--gold)':''}">${pendingSubs}</div>
+        <div class="stat-label">Pending Reviews</div>
+        <div class="stat-change ${pendingSubs>0?'up':'neutral'}">${pendingSubs>0?pendingSubs+' awaiting feedback':'All caught up'}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(155,109,255,0.12);color:var(--purple)">${Icons.star}</div>
+        <div class="stat-value">${cohortAvg !== null ? cohortAvg+'%' : '—'}</div>
+        <div class="stat-label">Cohort Average Score</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div style="display:flex;gap:4px;margin-bottom:1.5rem;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:4px;width:fit-content">
+      ${['overview','submissions','progress'].map(t=>`
+        <button onclick="setTab('${t}')" id="tab_${t}" class="btn btn-sm ${activeTab===t?'btn-primary':'btn-ghost'}" style="${activeTab===t?'':'background:none;border:none'};padding:6px 16px;border-radius:7px">${t.charAt(0).toUpperCase()+t.slice(1)}</button>
+      `).join('')}
+    </div>
+
+    <div id="tabContent">
+      ${activeTab === 'overview' ? renderOverviewTab() : ''}
+      ${activeTab === 'submissions' ? renderSubmissionsTab() : ''}
+      ${activeTab === 'progress' ? renderProgressTab() : ''}
+    </div>
+  `;
+}
+
+function setTab(t) { activeTab = t; renderInstructor(); }
+
+function renderOverviewTab() {
+  return `
+    <div class="section-title">${Icons.users} All Mentees</div>
+    <div class="card">
+      ${mentees.length === 0 ? `<div style="text-align:center;padding:2rem;color:var(--muted)">No mentees enrolled yet. Invite participants via the Supabase Auth dashboard.</div>` :
+      mentees.map(m => {
+        const prog = allProgress[m.id] || [];
+        const overall = calcOverallProgress(prog);
+        const avg = calcAvgScore(prog);
+        const cur = currentWeek(prog);
+        const subs = allSubmissions.filter(s=>s.user_id===m.id);
+        const pending = subs.filter(s=>s.status==='submitted').length;
+        return `
+        <div class="mentee-row">
+          <div class="mentee-avatar">${m.full_name.charAt(0).toUpperCase()}</div>
+          <div class="mentee-info">
+            <div class="mentee-name">${m.full_name}</div>
+            <div class="mentee-email">${m.email}</div>
+            <div style="display:flex;align-items:center;gap:0.75rem;margin-top:5px">
+              <div style="flex:1;max-width:140px"><div class="progress-bar-wrap" style="height:4px"><div class="progress-bar-fill" style="width:${overall}%"></div></div></div>
+              <span class="text-xs text-muted">${overall}%</span>
+              ${pending>0?`<span class="week-badge badge-in_progress">${pending} pending</span>`:''}
+            </div>
+          </div>
+          <div class="mentee-stats">
+            <div class="mentee-stat">
+              <div class="mentee-stat-val">${cur ? 'W'+cur.week_number : '—'}</div>
+              <div class="mentee-stat-lbl">Current</div>
+            </div>
+            <div class="mentee-stat">
+              <div class="mentee-stat-val"><span class="score-pill ${scoreClass(avg)}">${scoreLabel(avg)}</span></div>
+              <div class="mentee-stat-lbl">Avg Score</div>
+            </div>
+            <div class="mentee-stat">
+              <div class="mentee-stat-val text-muted" style="font-size:0.78rem">${timeAgo(m.last_active)}</div>
+              <div class="mentee-stat-lbl">Last Active</div>
+            </div>
+            <div class="mentee-stat">
+              <div class="mentee-stat-val">${subs.length}</div>
+              <div class="mentee-stat-lbl">Submissions</div>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    <p class="text-muted text-xs" style="margin-top:1rem">To invite new participants: go to your Supabase project → Authentication → Users → Invite User. Set role to 'mentee' in user metadata.</p>
+  `;
+}
+
+function renderSubmissionsTab() {
+  const pending = allSubmissions.filter(s=>s.status==='submitted');
+  const reviewed = allSubmissions.filter(s=>s.status!=='submitted');
+  return `
+    <div class="section-title">${Icons.tasks} Pending Reviews (${pending.length})</div>
+    ${pending.length === 0 ? `<div class="card" style="text-align:center;padding:2rem;color:var(--muted)">✅ No pending submissions — all caught up!</div>` :
+    `<div style="display:flex;flex-direction:column;gap:0.75rem;margin-bottom:2rem">
+      ${pending.map(s => {
+        const mentee = mentees.find(m=>m.id===s.user_id);
+        return `
+        <div class="card" style="border-left:3px solid var(--gold)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+            <div style="flex:1">
+              <div style="display:flex;gap:0.75rem;align-items:center;margin-bottom:6px;flex-wrap:wrap">
+                <span class="font-mono text-xs text-muted">W${s.week_number}</span>
+                <span class="font-bold text-sm">${mentee?.full_name||'Unknown'}</span>
+                <span class="text-muted text-xs">${timeAgo(s.submitted_at)}</span>
+              </div>
+              <div style="font-weight:600;margin-bottom:6px">${s.task_title}</div>
+              ${s.content?`<div class="text-muted text-sm" style="line-height:1.5;background:rgba(255,255,255,0.03);border-radius:6px;padding:8px 10px">${s.content.substring(0,300)}${s.content.length>300?'...':''}</div>`:''}
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+              ${s.file_url?`<a href="${s.file_url}" target="_blank" class="btn btn-ghost btn-sm">${Icons.external} View</a>`:''}
+              <button class="btn btn-gold btn-sm" onclick="openGrade(${JSON.stringify(s).replace(/"/g,'&quot;')})">Grade</button>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`}
+    <div class="section-title">${Icons.check} Recently Reviewed (${Math.min(reviewed.length,10)})</div>
+    <div class="card">
+      <table class="data-table">
+        <thead><tr><th>Mentee</th><th>Task</th><th>Week</th><th>Score</th><th>Status</th><th>Reviewed</th></tr></thead>
+        <tbody>
+          ${reviewed.slice(0,10).map(s=>{
+            const m = mentees.find(x=>x.id===s.user_id);
+            return `<tr>
+              <td>${m?.full_name||'Unknown'}</td>
+              <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.task_title}</td>
+              <td class="font-mono text-muted">W${s.week_number}</td>
+              <td><span class="score-pill ${scoreClass(s.score)}">${scoreLabel(s.score)}</span></td>
+              <td><span class="week-badge ${s.status==='reviewed'?'badge-completed':'badge-in_progress'}">${s.status.replace('_',' ')}</span></td>
+              <td class="text-muted">${timeAgo(s.reviewed_at)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderProgressTab() {
+  const weeks = weekData();
+  return `
+    <div class="section-title">${Icons.chart} Cohort Progress by Week</div>
+    <div class="card" style="margin-bottom:1.5rem">
+      <table class="data-table">
+        <thead><tr><th>Week</th><th>Title</th><th>Completed</th><th>In Progress</th><th>Not Started</th></tr></thead>
+        <tbody>
+          ${weeks.map((w,i)=>{
+            const weekNum = i+1;
+            const weekProgs = mentees.map(m=>(allProgress[m.id]||[]).find(p=>p.week_number===weekNum));
+            const done = weekProgs.filter(p=>p?.status==='completed').length;
+            const inProg = weekProgs.filter(p=>p?.status==='in_progress').length;
+            const notStarted = weekProgs.filter(p=>p?.status==='available'||p?.status==='locked').length;
+            const pct = mentees.length ? Math.round((done/mentees.length)*100) : 0;
+            return `<tr>
+              <td class="font-mono text-muted">W${String(weekNum).padStart(2,'0')}</td>
+              <td style="font-weight:500">${w.title}</td>
+              <td><div style="display:flex;align-items:center;gap:8px"><div class="progress-bar-wrap" style="width:80px"><div class="progress-bar-fill" style="width:${pct}%"></div></div><span class="text-green text-sm">${done}/${mentees.length}</span></div></td>
+              <td><span class="${inProg>0?'text-gold':'text-muted'} text-sm">${inProg}</span></td>
+              <td class="text-muted text-sm">${notStarted}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="section-title">${Icons.award} Completion Leaderboard</div>
+    <div class="card">
+      ${[...mentees].sort((a,b)=>calcOverallProgress(allProgress[b.id]||[])-calcOverallProgress(allProgress[a.id]||[])).map((m,i)=>{
+        const prog = allProgress[m.id]||[];
+        const overall = calcOverallProgress(prog);
+        const avg = calcAvgScore(prog);
+        return `
+        <div class="mentee-row">
+          <div style="width:28px;text-align:center;color:var(--muted);font-family:var(--font-mono);font-size:0.82rem">${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)}</div>
+          <div class="mentee-avatar">${m.full_name.charAt(0)}</div>
+          <div class="mentee-info">
+            <div class="mentee-name">${m.full_name}</div>
+            <div style="display:flex;align-items:center;gap:0.75rem;margin-top:4px">
+              <div style="flex:1;max-width:160px"><div class="progress-bar-wrap" style="height:4px"><div class="progress-bar-fill" style="width:${overall}%"></div></div></div>
+              <span class="text-xs">${overall}%</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:0.75rem;align-items:center">
+            <span class="score-pill ${scoreClass(avg)}">${scoreLabel(avg)}</span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+}
+
+function openGrade(sub) {
+  pendingSubmission = sub;
+  const mentee = mentees.find(m=>m.id===sub.user_id);
+  document.getElementById('gradeSubmissionInfo').innerHTML = `
+    <div style="background:rgba(255,255,255,0.04);border-radius:8px;padding:0.75rem 1rem;font-size:0.85rem">
+      <div class="font-bold" style="margin-bottom:4px">${sub.task_title}</div>
+      <div class="text-muted">${mentee?.full_name||''} · Week ${sub.week_number} · ${timeAgo(sub.submitted_at)}</div>
+      ${sub.content?`<div style="margin-top:8px;font-size:0.8rem;color:var(--muted);line-height:1.5">${sub.content.substring(0,200)}...</div>`:''}
+    </div>`;
+  document.getElementById('gradeScore').value = sub.score || '';
+  document.getElementById('gradeFeedback').value = sub.feedback || '';
+  document.getElementById('gradeModal').classList.add('open');
+}
+function closeGradeModal() { document.getElementById('gradeModal').classList.remove('open'); }
+
+async function submitGrade(status) {
+  if (!pendingSubmission) return;
+  const score = parseInt(document.getElementById('gradeScore').value);
+  const feedback = document.getElementById('gradeFeedback').value.trim();
+  if (isNaN(score) || score < 0 || score > 100) { toast('Enter a score between 0 and 100', 'error'); return; }
+  try {
+    await sb.from('submissions').update({ score, feedback, status, reviewed_at: new Date().toISOString() }).eq('id', pendingSubmission.id);
+    // Update week score (average of all task scores for that week)
+    const weekSubs = allSubmissions.filter(s=>s.user_id===pendingSubmission.user_id&&s.week_number===pendingSubmission.week_number);
+    const scored = [...weekSubs.filter(s=>s.id!==pendingSubmission.id&&s.score!==null), {score}];
+    if (scored.length) {
+      const weekAvg = Math.round(scored.reduce((a,s)=>a+s.score,0)/scored.length);
+      await sb.from('progress').update({ score: weekAvg }).eq('user_id', pendingSubmission.user_id).eq('week_number', pendingSubmission.week_number);
+    }
+    // Send notification to mentee
+    await sb.from('notifications').insert({ user_id: pendingSubmission.user_id, title: 'Submission reviewed: ' + pendingSubmission.task_title, body: feedback || 'Your submission has been reviewed. Score: ' + score + '%', type: 'feedback' });
+    closeGradeModal();
+    toast('Grade saved and feedback sent!', 'success');
+    await loadData(); renderInstructor();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function loadNotifRecipients() {
+  const sel = document.getElementById('notifRecipient');
+  sel.innerHTML = '<option value="all">All Mentees</option>' + mentees.map(m=>`<option value="${m.id}">${m.full_name}</option>`).join('');
+}
+
+async function sendNotification() {
+  const recipient = document.getElementById('notifRecipient').value;
+  const title = document.getElementById('notifTitle').value.trim();
+  const body = document.getElementById('notifBody').value.trim();
+  if (!title || !body) { toast('Please fill in title and message', 'error'); return; }
+  try {
+    const targets = recipient === 'all' ? mentees.map(m=>m.id) : [recipient];
+    for (const uid of targets) {
+      await sb.from('notifications').insert({ user_id: uid, title, body, type: 'info' });
+    }
+    document.getElementById('notifModal').classList.remove('open');
+    toast(`Notification sent to ${targets.length} participant${targets.length>1?'s':''}!`, 'success');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+init();
+</script>
+</body>
+</html>
+<script>
+// ── Export cohort data as CSV ──────────────────────────────────────────────────
+function exportCohortCSV() {
+  const rows = [['Name','Email','Joined','Last Active','Overall %','Avg Score','Weeks Complete','Submissions']];
+  mentees.forEach(m => {
+    const prog = allProgress[m.id]||[];
+    rows.push([
+      m.full_name, m.email,
+      formatDate(m.joined_at), formatDate(m.last_active),
+      calcOverallProgress(prog),
+      calcAvgScore(prog)??'',
+      prog.filter(p=>p.status==='completed').length,
+      allSubmissions.filter(s=>s.user_id===m.id).length
+    ]);
+  });
+  downloadCSV(rows, 'auditedge_cohort_' + new Date().toISOString().slice(0,10) + '.csv');
+  toast('Export downloaded!','success');
+}
+// Add export button dynamically after load
+document.addEventListener('DOMContentLoaded', ()=>{
+  const observer = new MutationObserver(()=>{
+    const header = document.querySelector('.topbar-actions');
+    if (header && !document.getElementById('exportBtn')) {
+      const btn = document.createElement('button');
+      btn.id = 'exportBtn';
+      btn.className = 'btn btn-ghost btn-sm';
+      btn.innerHTML = '⬇ Export CSV';
+      btn.onclick = exportCohortCSV;
+      header.prepend(btn);
+    }
+  });
+  observer.observe(document.body, { childList:true, subtree:true });
+});
+</script>

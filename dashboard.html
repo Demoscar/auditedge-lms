@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — AuditEdge Skillternship</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script>
+<script src="js/app.js"></script>
+<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#0A1628"></head>
+<body>
+<div class="bg-mesh"></div>
+<div id="appShell" class="app-shell" style="opacity:0;transition:opacity 0.3s">
+  <div id="sidebarContainer"></div>
+  <div class="main-content">
+    <div id="topbarContainer"></div>
+    <div class="page-body" id="pageBody">
+      <div class="loader"><div class="spinner"></div></div>
+    </div>
+  </div>
+</div>
+<!-- Notification Panel -->
+<div class="notif-panel" id="notifPanel">
+  <div class="notif-panel-head">
+    <span class="notif-panel-title">Notifications</span>
+    <button onclick="toggleNotifs()" style="background:none;border:none;color:var(--muted);cursor:pointer">${Icons?.close||'✕'}</button>
+  </div>
+  <div class="notif-list" id="notifList"><div class="loader"><div class="spinner"></div></div></div>
+</div>
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+let currentProfile = null, currentProgress = [], currentSubmissions = [];
+
+async function init() {
+  const auth = await requireAuth();
+  if (!auth) return;
+  const { profile } = auth;
+  currentProfile = profile;
+  currentProgress = await getProgress(auth.user.id);
+  currentSubmissions = await getSubmissions(auth.user.id);
+  const notifs = await getNotifications(auth.user.id);
+  const unread = notifs.filter(n => !n.read).length;
+
+  document.getElementById('sidebarContainer').innerHTML = renderSidebar('dashboard', profile);
+  document.getElementById('topbarContainer').innerHTML = renderTopbar('Dashboard', profile, unread);
+  renderNotifs(notifs);
+  renderDashboard(profile, currentProgress, currentSubmissions);
+  document.getElementById('appShell').style.opacity = '1';
+}
+
+function renderDashboard(profile, progress, submissions) {
+  const overall = calcOverallProgress(progress);
+  const avgScore = calcAvgScore(progress);
+  const completed = progress.filter(r => r.status === 'completed').length;
+  const current = currentWeek(progress);
+  const weeks = weekData();
+  const currentWeekInfo = weeks[(current?.week_number || 1) - 1];
+
+  document.getElementById('pageBody').innerHTML = `
+    <div style="margin-bottom:1.5rem">
+      <h1 class="font-head" style="font-size:1.5rem;font-weight:800;margin-bottom:4px">
+        Welcome back, ${profile.full_name.split(' ')[0]} 👋
+      </h1>
+      <p class="text-muted text-sm">AuditEdge Corp IT Audit Skillternship · Cohort ${profile.cohort || '2024'}</p>
+    </div>
+
+    <!-- Stats -->
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(0,201,167,0.12);color:var(--teal)">${Icons.chart}</div>
+        <div class="stat-value">${overall}%</div>
+        <div class="stat-label">Overall Progress</div>
+        <div class="progress-bar-wrap mt-1"><div class="progress-bar-fill" style="width:${overall}%"></div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(61,214,140,0.12);color:var(--green)">${Icons.check}</div>
+        <div class="stat-value">${completed}</div>
+        <div class="stat-label">Weeks Completed</div>
+        <div class="stat-change neutral">of 10 total weeks</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(244,168,58,0.12);color:var(--gold)">${Icons.star}</div>
+        <div class="stat-value">${avgScore !== null ? avgScore + '%' : '—'}</div>
+        <div class="stat-label">Average Score</div>
+        <div class="stat-change neutral">${submissions.filter(s=>s.score!==null).length} graded submissions</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(75,158,255,0.12);color:var(--blue)">${Icons.tasks}</div>
+        <div class="stat-value">${submissions.length}</div>
+        <div class="stat-label">Submissions</div>
+        <div class="stat-change neutral">${submissions.filter(s=>s.status==='reviewed').length} reviewed</div>
+      </div>
+    </div>
+
+    <!-- Current Week Banner -->
+    ${current && current.status !== 'completed' ? `
+    <div class="module-header" style="margin-bottom:1.5rem">
+      <div class="module-tag">CURRENT WEEK</div>
+      <div class="module-title">Week ${current.week_number}: ${currentWeekInfo?.title || ''}</div>
+      <div class="module-desc">${currentWeekInfo?.desc || ''}</div>
+      <div style="margin-top:1.2rem;display:flex;gap:1rem;align-items:center;flex-wrap:wrap">
+        <a href="modules.html?week=${current.week_number}" class="btn btn-primary" style="width:auto;margin:0">
+          ${current.status === 'in_progress' ? 'Continue Week' : 'Start Week'} →
+        </a>
+        <span class="text-sm text-muted">${currentWeekInfo?.tasks?.length || 0} tasks · ${currentWeekInfo?.days || 7} days</span>
+      </div>
+    </div>
+    ` : completed === 10 ? `
+    <div class="module-header" style="margin-bottom:1.5rem;background:linear-gradient(135deg,rgba(61,214,140,0.1),rgba(0,201,167,0.1))">
+      <div class="module-tag" style="color:var(--green)">🎉 PROGRAMME COMPLETE</div>
+      <div class="module-title">Congratulations!</div>
+      <div class="module-desc">You have completed all 10 weeks of the AuditEdge IT Audit Skillternship.</div>
+      <a href="certificate.html" class="btn btn-gold" style="width:auto;margin-top:1rem">View Your Certificate →</a>
+    </div>
+    ` : ''}
+
+    <!-- Week Grid -->
+    <div class="section-title">${Icons.modules} Programme Overview</div>
+    <div class="weeks-grid">
+      ${progress.map((p, i) => {
+        const w = weeks[i];
+        const badge = { locked:'badge-locked', available:'badge-available', in_progress:'badge-in_progress', completed:'badge-completed' }[p.status];
+        const label = { locked:'Locked', available:'Available', in_progress:'In Progress', completed:'Completed' }[p.status];
+        return `
+        <a href="modules.html?week=${p.week_number}" class="week-card ${p.status}" ${p.status === 'locked' ? 'onclick="return false"' : ''}>
+          <div class="week-header">
+            <div>
+              <div class="week-num">WEEK ${String(p.week_number).padStart(2,'0')}</div>
+              <div class="week-title">${w?.title || ''}</div>
+            </div>
+            <span class="week-badge ${badge}">${label}</span>
+          </div>
+          <div class="text-sm text-muted" style="line-height:1.5;margin-bottom:0.5rem">${w?.desc?.substring(0,90) || ''}...</div>
+          ${p.score ? `<div style="margin-top:0.5rem"><span class="score-pill ${scoreClass(p.score)}">${p.score}%</span></div>` : ''}
+          <div class="week-meta">
+            <span>${Icons.tasks} ${w?.tasks?.length || 0} tasks</span>
+            <span>${Icons.clock} ${w?.days || 7} days</span>
+            ${p.status === 'completed' && p.completed_at ? `<span style="color:var(--green)">✓ ${timeAgo(p.completed_at)}</span>` : ''}
+          </div>
+          ${p.status !== 'locked' ? `<div class="progress-bar-wrap mt-1"><div class="progress-bar-fill ${p.status==='completed'?'':'gold'}" style="width:${p.status==='completed'?100:p.status==='in_progress'?50:0}%"></div></div>` : ''}
+        </a>`;
+      }).join('')}
+    </div>
+
+    <!-- Recent Submissions -->
+    ${submissions.length > 0 ? `
+    <div class="section-title mt-3">${Icons.tasks} Recent Submissions</div>
+    <div class="card">
+      <table class="data-table">
+        <thead><tr><th>Task</th><th>Week</th><th>Submitted</th><th>Status</th><th>Score</th></tr></thead>
+        <tbody>
+          ${submissions.slice(0,5).map(s => `
+          <tr>
+            <td><span class="font-bold" style="font-size:0.85rem">${s.task_title}</span></td>
+            <td><span class="font-mono text-muted">W${s.week_number}</span></td>
+            <td class="text-muted">${timeAgo(s.submitted_at)}</td>
+            <td><span class="week-badge ${s.status==='reviewed'?'badge-completed':s.status==='needs_revision'?'badge-in_progress':'badge-available'}">${s.status}</span></td>
+            <td><span class="score-pill ${scoreClass(s.score)}">${scoreLabel(s.score)}</span></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      ${submissions.length > 5 ? `<div style="padding-top:1rem;text-align:center"><a href="submissions.html" class="btn btn-ghost btn-sm">View all submissions</a></div>` : ''}
+    </div>
+    ` : ''}
+  `;
+}
+
+function renderNotifs(notifs) {
+  const list = document.getElementById('notifList');
+  if (!notifs.length) {
+    list.innerHTML = `<div style="padding:2rem;text-align:center;color:var(--muted);font-size:0.85rem">No notifications yet</div>`;
+    return;
+  }
+  list.innerHTML = notifs.map(n => `
+    <div class="notif-item ${n.read ? '' : 'unread'}" onclick="readNotif('${n.id}', this)">
+      <div class="notif-dot2 ${n.read ? 'read' : ''}"></div>
+      <div>
+        <div class="notif-item-title">${n.title}</div>
+        <div class="notif-item-body">${n.body}</div>
+        <div class="notif-item-time">${timeAgo(n.created_at)}</div>
+      </div>
+    </div>`).join('');
+}
+
+async function readNotif(id, el) {
+  await markNotificationRead(id);
+  el.classList.remove('unread');
+  el.querySelector('.notif-dot2').classList.add('read');
+}
+
+init();
+</script>
+</body>
+</html>

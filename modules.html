@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Programme Weeks — AuditEdge Skillternship</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script><script src="js/app.js"></script>
+<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#0A1628"></head>
+<body>
+<div class="bg-mesh"></div>
+<div id="appShell" class="app-shell" style="opacity:0;transition:opacity 0.3s">
+  <div id="sidebarContainer"></div>
+  <div class="main-content">
+    <div id="topbarContainer"></div>
+    <div class="page-body" id="pageBody"><div class="loader"><div class="spinner"></div></div></div>
+  </div>
+</div>
+<div class="notif-panel" id="notifPanel">
+  <div class="notif-panel-head"><span class="notif-panel-title">Notifications</span><button onclick="toggleNotifs()" style="background:none;border:none;color:var(--muted);cursor:pointer">✕</button></div>
+  <div class="notif-list" id="notifList"></div>
+</div>
+<!-- Task submission modal -->
+<div class="modal-overlay" id="taskModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTaskTitle">Submit Task</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <p class="text-muted text-sm" id="modalTaskDesc" style="margin-bottom:1.2rem"></p>
+    <div class="form-group">
+      <label class="form-label">Your Response / Notes</label>
+      <textarea class="submission-textarea" id="modalContent" placeholder="Describe your approach, summarise your findings, paste key evidence, or upload your work file link..."></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">File Link (Google Drive / GitHub)</label>
+      <input type="url" class="form-input" id="modalFileUrl" placeholder="https://drive.google.com/...">
+    </div>
+    <button class="btn btn-primary" onclick="submitTask()">
+      ${Icons?.check||'✓'} Submit Task
+    </button>
+  </div>
+</div>
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+let auth, progress, submissions, selectedTask = null, activeWeek = null;
+
+async function init() {
+  auth = await requireAuth(); if (!auth) return;
+  const { profile, user } = auth;
+  progress = await getProgress(user.id);
+  submissions = await getSubmissions(user.id);
+  const notifs = await getNotifications(user.id);
+  const unread = notifs.filter(n=>!n.read).length;
+
+  document.getElementById('sidebarContainer').innerHTML = renderSidebar('modules', profile);
+  document.getElementById('topbarContainer').innerHTML = renderTopbar('Programme Weeks', profile, unread);
+
+  const params = new URLSearchParams(window.location.search);
+  const weekParam = parseInt(params.get('week'));
+  if (weekParam && weekParam >= 1 && weekParam <= 10) {
+    renderWeekDetail(weekParam, profile);
+  } else {
+    renderAllWeeks();
+  }
+  document.getElementById('appShell').style.opacity = '1';
+}
+
+function renderAllWeeks() {
+  const weeks = weekData();
+  document.getElementById('pageBody').innerHTML = `
+    <div style="margin-bottom:1.5rem">
+      <h1 class="font-head" style="font-size:1.5rem;font-weight:800;margin-bottom:4px">Programme Weeks</h1>
+      <p class="text-muted text-sm">10-week IT Audit Skillternship at AuditEdge Corp</p>
+    </div>
+    <div class="weeks-grid">
+      ${progress.map((p, i) => {
+        const w = weeks[i];
+        const badge = {locked:'badge-locked',available:'badge-available',in_progress:'badge-in_progress',completed:'badge-completed'}[p.status];
+        const label = {locked:'Locked',available:'Available',in_progress:'In Progress',completed:'Completed'}[p.status];
+        return `
+        <a href="?week=${p.week_number}" class="week-card ${p.status}" ${p.status==='locked'?'onclick="return false"':''}>
+          <div class="week-header">
+            <div><div class="week-num">WEEK ${String(p.week_number).padStart(2,'0')}</div><div class="week-title">${w?.title||''}</div></div>
+            <span class="week-badge ${badge}">${label}</span>
+          </div>
+          <div class="text-sm text-muted" style="line-height:1.5;margin-bottom:0.75rem">${w?.desc||''}</div>
+          ${p.score?`<span class="score-pill ${scoreClass(p.score)}">${p.score}%</span>`:''}
+          <div class="week-meta">
+            <span>${Icons.tasks} ${w?.tasks?.length||0} tasks</span>
+            <span>${Icons.clock} ${w?.days||7} days</span>
+          </div>
+        </a>`;
+      }).join('')}
+    </div>`;
+}
+
+function renderWeekDetail(weekNum, profile) {
+  const weeks = weekData();
+  const w = weeks[weekNum-1];
+  const p = progress.find(r=>r.week_number===weekNum);
+  const weekSubs = submissions.filter(s=>s.week_number===weekNum);
+  activeWeek = weekNum;
+
+  if (!p || p.status === 'locked') {
+    document.getElementById('pageBody').innerHTML = `
+      <a href="modules.html" class="btn btn-ghost btn-sm" style="margin-bottom:1.5rem">← Back</a>
+      <div class="card" style="text-align:center;padding:3rem">
+        <div style="font-size:3rem;margin-bottom:1rem">🔒</div>
+        <h2 class="font-head" style="margin-bottom:0.5rem">Week ${weekNum} is locked</h2>
+        <p class="text-muted">Complete the previous week to unlock this content.</p>
+      </div>`;
+    return;
+  }
+
+  const taskSubs = {};
+  weekSubs.forEach(s => taskSubs[s.task_id] = s);
+
+  document.getElementById('pageBody').innerHTML = `
+    <a href="modules.html" class="btn btn-ghost btn-sm" style="margin-bottom:1.5rem">← All Weeks</a>
+    <div class="module-header">
+      <div class="module-tag">WEEK ${String(weekNum).padStart(2,'0')}</div>
+      <div class="module-title">${w.title}</div>
+      <div class="module-desc">${w.desc}</div>
+      <div class="module-stats">
+        <div class="module-stat"><div class="module-stat-val">${w.tasks.length}</div><div class="module-stat-lbl">Tasks</div></div>
+        <div class="module-stat"><div class="module-stat-val">${w.days}</div><div class="module-stat-lbl">Days</div></div>
+        <div class="module-stat"><div class="module-stat-val">${weekSubs.length}</div><div class="module-stat-lbl">Submitted</div></div>
+        ${p.score?`<div class="module-stat"><div class="module-stat-val" style="color:var(--teal)">${p.score}%</div><div class="module-stat-lbl">Score</div></div>`:''}
+      </div>
+    </div>
+
+    <div class="section-title">${Icons.tasks} Tasks</div>
+    <div class="tasks-list">
+      ${w.tasks.map((task, i) => {
+        const taskId = `w${weekNum}_t${i+1}`;
+        const sub = taskSubs[taskId];
+        const done = !!sub;
+        return `
+        <div class="task-item">
+          <div class="task-check ${done?'done':''}">${done?Icons.check:''}</div>
+          <div class="task-info">
+            <div class="task-title">${task}</div>
+            ${sub ? `<div class="task-meta">Submitted ${timeAgo(sub.submitted_at)} · <span class="score-pill ${scoreClass(sub.score)}" style="font-size:0.72rem">${sub.status}</span></div>` : `<div class="task-meta text-muted">Not yet submitted</div>`}
+            ${sub?.feedback ? `<div style="margin-top:6px;padding:8px 12px;background:rgba(0,201,167,0.06);border-radius:6px;font-size:0.8rem;color:var(--teal)">💬 Feedback: ${sub.feedback}</div>` : ''}
+          </div>
+          <div class="task-actions">
+            ${!done && p.status !== 'completed' ? `<button class="btn btn-ghost btn-sm" onclick="openTask('${taskId}','${task.replace(/'/g,"\\'")}')">Submit</button>` : ''}
+            ${sub?.file_url ? `<a href="${sub.file_url}" target="_blank" class="btn btn-ghost btn-sm">${Icons.external}</a>` : ''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+
+    ${p.status !== 'completed' ? `
+    <div class="card mt-3" style="border-color:rgba(0,201,167,0.2)">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem">
+        <div>
+          <div class="font-head font-bold" style="margin-bottom:4px">Mark week as complete?</div>
+          <div class="text-muted text-sm">Submit all tasks before marking complete. Your instructor will then review and score this week.</div>
+        </div>
+        <button class="btn btn-primary" style="width:auto;margin:0" onclick="markComplete(${weekNum})">Mark Complete ✓</button>
+      </div>
+    </div>` : `
+    <div class="card mt-3" style="border-color:rgba(61,214,140,0.3);background:rgba(61,214,140,0.05)">
+      <div class="text-green font-bold">✅ Week ${weekNum} completed ${timeAgo(p.completed_at)}</div>
+      ${weekNum < 10 ? `<a href="?week=${weekNum+1}" class="btn btn-ghost btn-sm" style="margin-top:0.75rem;display:inline-flex">Go to Week ${weekNum+1} →</a>` : `<a href="certificate.html" class="btn btn-gold btn-sm" style="margin-top:0.75rem;display:inline-flex">View Certificate →</a>`}
+    </div>`}
+  `;
+}
+
+function openTask(taskId, title) {
+  selectedTask = { id: taskId, title };
+  document.getElementById('modalTaskTitle').textContent = title;
+  document.getElementById('modalTaskDesc').textContent = 'Submit your work for this task. You can paste your response, key findings, or provide a link to your file.';
+  document.getElementById('modalContent').value = '';
+  document.getElementById('modalFileUrl').value = '';
+  document.getElementById('taskModal').classList.add('open');
+}
+function closeModal() { document.getElementById('taskModal').classList.remove('open'); }
+
+async function submitTask() {
+  if (!selectedTask) return;
+  const content = document.getElementById('modalContent').value.trim();
+  const fileUrl = document.getElementById('modalFileUrl').value.trim();
+  if (!content && !fileUrl) { toast('Please provide a response or file link.', 'error'); return; }
+  try {
+    await sb.from('submissions').upsert({
+      user_id: auth.user.id, week_number: activeWeek,
+      task_id: selectedTask.id, task_title: selectedTask.title,
+      content, file_url: fileUrl || null, status: 'submitted'
+    }, { onConflict: 'user_id,week_number,task_id' });
+    // Mark week in_progress if available
+    const p = progress.find(r=>r.week_number===activeWeek);
+    if (p?.status === 'available') {
+      await sb.from('progress').update({ status: 'in_progress', started_at: new Date().toISOString() }).eq('user_id', auth.user.id).eq('week_number', activeWeek);
+    }
+    closeModal();
+    toast('Task submitted successfully!', 'success');
+    submissions = await getSubmissions(auth.user.id);
+    renderWeekDetail(activeWeek, auth.profile);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function markComplete(weekNum) {
+  try {
+    await sb.from('progress').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('user_id', auth.user.id).eq('week_number', weekNum);
+    // Unlock next week
+    if (weekNum < 10) {
+      await sb.from('progress').update({ status: 'available' }).eq('user_id', auth.user.id).eq('week_number', weekNum+1);
+    }
+    progress = await getProgress(auth.user.id);
+    toast('Week ' + weekNum + ' marked as complete!', 'success');
+    renderWeekDetail(weekNum, auth.profile);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+init();
+</script>
+</body>
+</html>
