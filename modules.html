@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Programme Weeks — AuditEdge Skillternship</title>
 <link rel="stylesheet" href="css/style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0A1628">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/supabase.js"></script><script src="js/app.js"></script>
-<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#0A1628"></head>
+<script src="js/supabase.js"></script>
+<script src="js/app.js"></script>
+</head>
 <body>
 <div class="bg-mesh"></div>
 <div id="appShell" class="app-shell" style="opacity:0;transition:opacity 0.3s">
@@ -17,7 +20,8 @@
   </div>
 </div>
 <div class="notif-panel" id="notifPanel">
-  <div class="notif-panel-head"><span class="notif-panel-title">Notifications</span><button onclick="toggleNotifs()" style="background:none;border:none;color:var(--muted);cursor:pointer">✕</button></div>
+  <div class="notif-panel-head"><span class="notif-panel-title">Notifications</span>
+  <button onclick="toggleNotifs()" style="background:none;border:none;color:var(--muted);cursor:pointer">✕</button></div>
   <div class="notif-list" id="notifList"></div>
 </div>
 <!-- Task submission modal -->
@@ -27,40 +31,176 @@
       <div class="modal-title" id="modalTaskTitle">Submit Task</div>
       <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
-    <p class="text-muted text-sm" id="modalTaskDesc" style="margin-bottom:1.2rem"></p>
+    <p class="text-muted text-sm" style="margin-bottom:1.2rem">Describe your approach, summarise your findings, or paste key evidence. You can also provide a link to a file on Google Drive.</p>
     <div class="form-group">
-      <label class="form-label">Your Response / Notes</label>
-      <textarea class="submission-textarea" id="modalContent" placeholder="Describe your approach, summarise your findings, paste key evidence, or upload your work file link..."></textarea>
+      <label class="form-label" for="modalContent">Your Response</label>
+      <textarea class="submission-textarea" id="modalContent" placeholder="Write your response here..."></textarea>
     </div>
     <div class="form-group">
-      <label class="form-label">File Link (Google Drive / GitHub)</label>
+      <label class="form-label" for="modalFileUrl">File Link (Google Drive — optional)</label>
       <input type="url" class="form-input" id="modalFileUrl" placeholder="https://drive.google.com/...">
     </div>
-    <button class="btn btn-primary" onclick="submitTask()">
-      ${Icons?.check||'✓'} Submit Task
-    </button>
+    <button class="btn btn-primary" onclick="submitTask()">Submit Task</button>
   </div>
 </div>
 <div class="toast-container" id="toastContainer"></div>
 
 <script>
-let auth, progress, submissions, selectedTask = null, activeWeek = null;
+var authCtx, progress, submissions, selectedTask = null, activeWeek = null;
+
+// ── Full week content including learning material ─────────────────────────────
+function weekContent() {
+  return [
+    {
+      n:1, title:"Onboarding & IT Environment",
+      desc:"Review AuditEdge Corp's IT landscape, meet your team, and complete your Audit Universe orientation.",
+      learning:[
+        { heading:"Welcome to AuditEdge Corp", body:"You are joining as a Staff IT Auditor on a 10-week engagement at AuditEdge Corp — a fictional $520M financial services company based in Dallas, Texas, with five regional offices and approximately 1,400 employees. AuditEdge Corp offers retail banking, mortgage lending, and wealth management services. Your engagement covers the FY2024 IT General Controls audit under SOX Section 404, a SOC 2 readiness assessment, and a cybersecurity review." },
+        { heading:"The IT Environment", body:"AuditEdge Corp runs a hybrid IT environment across on-premises and cloud infrastructure. Key systems include: IBM Mainframe (core banking — Critical), SAP S/4HANA (ERP/Finance — Critical), AWS (EC2, RDS, S3, CloudTrail — Critical), Azure Active Directory (Identity/SSO — Critical), Workday (HR/Provisioning — High), ServiceNow (ITSM/Change Management — High), Splunk SIEM (Log monitoring — High), and GitHub Enterprise (DevOps — Medium). Your first task is to familiarise yourself with all of these systems and understand why each is in scope." },
+        { heading:"Your Team", body:"You will interact with seven key characters throughout the engagement. Marcus Webb is the CIO and your primary sponsor — he has final sign-off authority on the audit scope. Priya Nair is the IT Security Manager responsible for access controls and the MFA exception register. Derek Osei leads Cloud Infrastructure and owns the AWS environment. Sandra Liu manages Application Development and is your contact for change management. James Thornton is the IT Compliance Officer who owns all 12 IT policies. Ravi Menon is the Database Administrator. Tracy Cole manages the Help Desk and owns the access provisioning process. Review the Character Brief for each person (CHAR-001 through CHAR-007) in the Artifact Library before your first walkthrough." },
+        { heading:"The IT Audit Universe", body:"The IT Audit Universe (REF-010 in the Artifact Library) is a master catalogue of all 29 auditable IT entities at AuditEdge Corp, each with a risk rating and audit frequency. For FY2024, 25 entities are in scope. Your first job is to read the Universe, confirm which entities are in scope, and identify any critical gaps — particularly the Mortgage Processing Application DR test that is 16 months overdue. This Universe will guide your audit plan for the entire 10 weeks." },
+        { heading:"Your Deliverable This Week", body:"By the end of Week 1 you should be able to describe AuditEdge Corp's IT environment clearly, identify all 7 key contacts and their roles, and explain why each in-scope system is relevant to the SOX ITGC audit. Your written summary should cover: the key systems and their criticality, any pre-existing gaps you have identified from the Audit Universe, and your initial risk assessment of where the highest-risk areas are likely to be." }
+      ],
+      tasks:["Complete the pre-engagement IT environment review","Review all Character Briefs for your key contacts","Study the IT Audit Universe and confirm FY2024 scope","Submit: IT Environment Summary (500 words)"],
+      days:5, artifacts:["CHAR-001","CHAR-002","CHAR-003","CHAR-004","CHAR-005","CHAR-006","CHAR-007","REF-010","REF-001"]
+    },
+    {
+      n:2, title:"SOX ITGC Planning",
+      desc:"Develop your planning memo, confirm scope, and map in-scope systems to financial statement line items.",
+      learning:[
+        { heading:"Why Planning Is the Most Important Phase", body:"A poorly planned audit wastes time, misses risks, and produces findings management can dispute. Your planning memo is the contract that defines exactly what you will test, why, and how. No fieldwork begins until the planning memo is complete and approved. This week you build that foundation." },
+        { heading:"SOX Section 404 and ITGCs", body:"The Sarbanes-Oxley Act Section 404 requires management to assess the effectiveness of internal controls over financial reporting annually. For IT auditors, this means testing IT General Controls (ITGCs) across four domains: Logical Access, Change Management, Computer Operations, and Program Development. At AuditEdge Corp, the in-scope systems for SOX are the IBM Mainframe, SAP S/4HANA, AWS, Azure AD, and Workday — because these systems either produce or directly support financial reporting data." },
+        { heading:"The Risk and Control Matrix", body:"The Risk and Control Matrix (RCM) maps each identified risk to the control that mitigates it, and then to the specific test procedure you will use to validate that control. For example: Risk = Terminated employee retains system access → Control = Access deprovisioning process removes access within 1 business day → Test = Cross-reference Workday termination report against AD user export. Your RCM is the backbone of your entire audit programme. Use TMPL-AUD-002 from the Artifact Library." },
+        { heading:"Prior Year Findings", body:"The FY2023 prior year workpapers (REF-007) show two open findings carried into FY2024: (1) 14 privileged AD accounts not reviewed within the required 12-month period — management committed to implementing quarterly reminders, and (2) 23 emergency changes with post-implementation approvals documented more than 24 hours after implementation — management committed to retraining the change management team. Both findings are in scope for FY2024 testing as potential repeats, which would escalate their severity." },
+        { heading:"Your Deliverable This Week", body:"Complete your Planning Memo using TMPL-AUD-001 from the Artifact Library. It must cover all six components: engagement background, scope and objectives, risk and controls summary, audit team and timeline, prior year findings, and approvals. Also complete your initial Risk and Control Matrix using TMPL-AUD-002, mapping at minimum the logical access and change management risks to their controls and test procedures." }
+      ],
+      tasks:["Draft the FY2024 ITGC Planning Memo (use TMPL-AUD-001)","Review FY2023 prior year workpapers for open findings (REF-007)","Complete the Risk & Control Matrix for logical access (use TMPL-AUD-002)","Submit: Approved Planning Memo"],
+      days:5, artifacts:["TMPL-AUD-001","TMPL-AUD-002","REF-007","REF-010","REF-003"]
+    },
+    {
+      n:3, title:"Logical Access Testing",
+      desc:"Test user provisioning, deprovisioning, VPN certificate management, and privileged access reviews.",
+      learning:[
+        { heading:"What Is Logical Access Testing?", body:"Logical access controls govern who can access which systems and data. This is the most commonly tested ITGC domain because unauthorised access is the most direct path to financial statement manipulation. Your testing this week covers the full access management lifecycle: how access is requested and approved (provisioning), how it is removed when employees leave (deprovisioning), whether managers are reviewing access periodically (access reviews), and whether privileged accounts are properly controlled." },
+        { heading:"The AD User Export", body:"Your primary evidence source this week is the Active Directory user export (AD-EXPORT in the Artifact Library). This CSV file contains all 1,400 employee accounts including their group memberships, last login dates, account status, and manager. You will use this file to: identify accounts belonging to terminated employees that are still active, identify privileged accounts (Global Administrators, SAP_DEVADMIN) that lack documented business justification, and cross-reference against the Workday termination report." },
+        { heading:"The Termination Testing", body:"Cross-reference the Workday Termination Report (WD-TERMINATIONS) against the AD User Export. For each terminated employee, check whether their AD account was disabled on or before their termination date. Then cross-reference against the VPN Certificate Registry (VPN-CERTS). You are looking for a specific gap: employees whose AD accounts are disabled but whose VPN certificates are still active — meaning they could still connect to the corporate network remotely. You will find 3 such cases in the data." },
+        { heading:"Privileged Access Review Testing", body:"Pull all accounts with privileged access (Global Admin, Domain Admin, SAP_DEVADMIN roles) from the AD export. For each one, check: Is there a documented access review completed within the last 12 months? Is there a documented business justification for the privileged level? Check against the FY2023 prior year finding — the same 14 accounts were overdue then. If they are still overdue now, this is a repeat finding, which escalates the severity to High." },
+        { heading:"Writing Your Finding", body:"Use the C/C/C/E/R format (TMPL-AUD-005): Condition — what you observed (e.g. 3 terminated employees have active VPN certificates). Criteria — what the policy requires (POL-SEC-002 requires all system access including VPN certificates to be revoked on or before the termination date). Cause — why it happened (VPN certificate revocation is not included in the offboarding checklist managed by the Help Desk). Effect — the risk (terminated employees could reconnect to the corporate network). Recommendation — what to fix it (add VPN certificate revocation to the offboarding checklist and implement a monthly automated check)." }
+      ],
+      tasks:["Perform AD user export analysis — identify terminated accounts still active","Cross-reference VPN certificate registry against Workday termination report","Test privileged access review completeness against 12-month requirement","Draft Finding using C/C/C/E/R format (use TMPL-AUD-005)","Submit: Logical Access TOE Workpaper (use TMPL-AUD-004)"],
+      days:7, artifacts:["AD-EXPORT","WD-TERMINATIONS","VPN-CERTS","TMPL-AUD-004","TMPL-AUD-005","POL-SEC-002","REF-011"]
+    },
+    {
+      n:4, title:"Change Management Testing",
+      desc:"Test Normal, Standard, and Emergency change controls using the ServiceNow change log.",
+      learning:[
+        { heading:"Why Change Management Matters for SOX", body:"Every change to a production financial system — a code update, a configuration change, a database patch — could alter the calculations, validations, or outputs that financial statements depend on. Change management controls ensure every such change is tested, approved by the Change Advisory Board (CAB), and documented before going live. If change management controls fail, you cannot rely on the financial applications they cover." },
+        { heading:"The ServiceNow Change Log", body:"Your evidence source this week is the ServiceNow Change Log (SN-CHANGELOG in the Artifact Library). This CSV file contains 150 change tickets covering 90 days. Each ticket shows the change type (Normal, Standard, Emergency), the requester, the implementation date, the CAB approval date, whether there was pre-production testing, and whether a Post-Implementation Review (PIR) was completed. Your job is to select a sample of 25 tickets and test each one against the criteria in POL-ITGC-001." },
+        { heading:"What to Test For Each Change", body:"For Normal Changes: Was a formal request submitted? Was CAB approval documented before the implementation date (not after)? Is there evidence of pre-production testing? Is there a PIR for high-risk changes? For Emergency Changes: Was there verbal approval from the CAB chair? Was written approval documented within 24 hours of implementation? Was a mandatory PIR completed? The key exception you are looking for: changes where the CAB approval date is after the implementation date — meaning the change was deployed before it was approved." },
+        { heading:"What You Will Find", body:"In the ServiceNow data, you will identify 23 emergency changes where the written post-implementation approval was documented more than 24 hours after the change was implemented — some as late as 7 days. This is a systemic pattern, not isolated incidents. A systemic pattern means the control is not operating as designed across the board, which elevates the finding to High risk. You will also find several normal changes missing PIR documentation." },
+        { heading:"Your Deliverable", body:"Complete an Attribute Test Workpaper (TMPL-AUD-004) documenting your population (150 change tickets), sample size (25), selection method, criteria for each test attribute, and the result for each sampled item. Then draft a finding for the emergency change exceptions using TMPL-AUD-005. Include management's likely response in your finding draft — they will argue urgency. Document that urgency does not exempt changes from the written approval requirement." }
+      ],
+      tasks:["Analyse 90-day ServiceNow change log (150 tickets in SN-CHANGELOG)","Select and test a sample of 25 changes against POL-ITGC-001 criteria","Identify Emergency Change approval timing exceptions","Draft Finding for change management exceptions (use TMPL-AUD-005)","Submit: Change Management TOE Workpaper (TMPL-AUD-004) and Finding"],
+      days:7, artifacts:["SN-CHANGELOG","POL-ITGC-001","TMPL-AUD-004","TMPL-AUD-005","REF-007"]
+    },
+    {
+      n:5, title:"SOC 2 Readiness — Part 1",
+      desc:"Evaluate Entity-Level Controls and CC1/CC2 Trust Services Criteria for SOC 2 readiness.",
+      learning:[
+        { heading:"What Is SOC 2?", body:"SOC 2 (System and Organization Controls 2) is an audit standard that assesses a service organisation's controls across five Trust Services Criteria (TSC): Security (CC), Availability (A), Processing Integrity (PI), Confidentiality (C), and Privacy (P). AuditEdge Corp is preparing for a SOC 2 Type II audit — meaning controls must not just exist (Type I) but must have operated effectively over a minimum 6-month period (Type II). Your role this week is to assess readiness." },
+        { heading:"Entity-Level Controls and CC1", body:"CC1 (Control Environment) covers Entity-Level Controls — the company-wide governance foundation. This includes tone at the top (do leaders visibly champion compliance?), organisational structure (is IT audit independent of IT management?), the policy framework (are all 12 IT policies current, owner-assigned, and reviewed annually?), and the risk assessment process (is there a formal, documented process?). Weaknesses in ELCs undermine every individual control built on top of them." },
+        { heading:"What You Will Find in the Policy Library", body:"Review James Thornton's IT Policy Library Index (REF-005). You will find that the Data Classification Policy (POL-DG-001) has passed its annual review date. You will also find that security awareness training completion is only 89% — 138 employees have not completed mandatory training with no escalation process in place. Both are CC1 gaps that must be documented in your gap analysis." },
+        { heading:"Vendor Risk and CC2", body:"CC2 (Communication and Information) includes vendor oversight. Review the Vendor Risk Register in REF-011. You will find that CloudSafe — the managed security provider — has a SOC 2 Type II report that covers April 2023 to March 2024. As of your review date in November 2024, this report is 7 months past its period end. Best practice requires obtaining the most current report available. The contract renewal deadline is December 31, 2024, making this urgent." },
+        { heading:"Your Deliverable", body:"Complete Part 1 of the SOC 2 Gap Assessment using TMPL-AUD-006. For each CC1 and CC2 criterion, document the current state, the target state, the gap (if any), and your recommended remediation action with a suggested timeline. Your gap analysis should identify at minimum: overdue policy review, incomplete security training, and the expired CloudSafe SOC 2 report." }
+      ],
+      tasks:["Review the IT policy library against SOC 2 CC1 requirements","Assess ELC maturity: governance, tone at top, risk assessment process","Review vendor SOC 2 collection programme and CloudSafe report (CLOUDSAFE-SOC2)","Submit: SOC 2 Gap Analysis Part 1 (use TMPL-AUD-006)"],
+      days:7, artifacts:["TMPL-AUD-006","POL-SEC-001","POL-DG-001","POL-VRM-001","CLOUDSAFE-SOC2","REF-011","REF-008"]
+    },
+    {
+      n:6, title:"SOC 2 Readiness — Part 2",
+      desc:"Evaluate access management, change management, and incident response against SOC 2 criteria.",
+      learning:[
+        { heading:"CC6 — Logical and Physical Access", body:"CC6 is the most tested SOC 2 criterion. It covers: CC6.1 (MFA for all access to the environment), CC6.2 (access provisioning process), CC6.3 (periodic access reviews), and CC6.6 (removal of access for terminated individuals). Your findings from Week 3 directly feed into your CC6 assessment. The 3 terminated employees with active VPN certificates is a CC6.6 gap. The 14 overdue privileged access reviews is a CC6.3 gap. The MFA exception for 11 mainframe admin accounts is a CC6.1 gap." },
+        { heading:"CC8 — Change Management", body:"CC8 covers the change management process. Your findings from Week 4 feed directly here. The 23 emergency changes with late written approvals is a CC8 gap. Review the Change Management Policy (POL-ITGC-001) against the SOC 2 CC8 criteria and document whether the policy itself meets the design requirements, and whether the operating evidence from your Week 4 testing shows effective operation." },
+        { heading:"CC7 — System Monitoring and Incident Response", body:"CC7 covers anomaly detection and incident response. Review the Incident Response Plan (REF-012) against CC7.3 (incident response procedures) and CC7.4 (incident identification and response). Check whether the IRP has been tested in the last 12 months and whether there is documented evidence of Splunk SIEM alert reviews. The Security Exception Register (REF-011) contains the MFA exemption details that are relevant here." },
+        { heading:"The CloudSafe SOC 2 Report", body:"Review the CloudSafe SOC 2 Type II Report (CLOUDSAFE-SOC2) in detail. Read the auditor's opinion, examine the control activities, and look for any exceptions noted in the testing results. Check whether CloudSafe uses any subservice organisations that require their own separate assurance. Document your conclusions in a Vendor Risk Memo — is AuditEdge Corp's reliance on CloudSafe appropriately controlled given the report's age and findings?" },
+        { heading:"Your Deliverable", body:"Complete Part 2 of the SOC 2 Gap Assessment (TMPL-AUD-006) covering CC6, CC7, and CC8. Also write a short Vendor Risk Memo (1-2 pages) summarising your CloudSafe assessment, the significance of the expired report, and your recommendation ahead of the December 31 contract renewal deadline." }
+      ],
+      tasks:["Test CC6 (Logical and Physical Access) controls against SOC 2 criteria","Test CC8 (Change Management) controls against SOC 2 criteria","Review CloudSafe SOC 2 Type II report and note exceptions","Submit: SOC 2 Gap Analysis Part 2 and Vendor Risk Memo"],
+      days:7, artifacts:["TMPL-AUD-006","TMPL-AUD-007","CLOUDSAFE-SOC2","REF-011","REF-012","POL-ITGC-001","POL-SEC-002"]
+    },
+    {
+      n:7, title:"Interim Audit Report",
+      desc:"Consolidate all ITGC and SOC 2 findings into an interim report for management review.",
+      learning:[
+        { heading:"What Goes Into an Interim Report", body:"An interim report consolidates all findings from fieldwork to date — your logical access findings from Week 3, your change management findings from Week 4, and your SOC 2 gap analysis from Weeks 5 and 6. It is shared with management before the final report to give them an opportunity to respond, begin remediation, and flag any factual inaccuracies. It is not a final document — management responses will update it." },
+        { heading:"Finding Severity Ratings", body:"Every finding must be rated: Critical (immediate risk to financial reporting or regulatory compliance with no compensating control), High (significant risk with partial compensating controls, or a repeat finding from a prior year), Medium (moderate risk, compensating controls exist), or Low (minor gap, low impact). At AuditEdge Corp, the repeat privileged access review finding should be rated High (repeat). The emergency change management gap should be rated High (systemic). The VPN certificate revocation gap should be rated Medium (3 instances, partially compensating AD disabled control)." },
+        { heading:"The C/C/C/E/R Structure", body:"Every finding in your report must follow the five-element structure: Condition (exactly what you observed, with specific data), Criteria (the exact policy requirement or regulatory standard it violates — cite the policy number and section), Cause (the root cause — not just 'the control failed' but why it failed), Effect (the specific risk to the organisation — financial, regulatory, reputational, or operational), and Recommendation (specific, actionable, and realistic — include a suggested remediation timeline)." },
+        { heading:"Management Action Plans", body:"For your top 3 findings, draft a proposed Management Action Plan. This is what you expect management to commit to: a specific action, a named owner, and a target completion date. Experienced auditors know that vague commitments ('we will improve the process') are not acceptable — the action plan must be specific enough that you can verify completion in the follow-up phase." },
+        { heading:"Your Deliverable", body:"Complete the Audit Report Template (TMPL-AUD-008) covering all findings from Weeks 3 to 6. Include an executive summary (no more than one page), a findings summary table showing all findings with their severity ratings, and the detailed finding write-ups in C/C/C/E/R format. This interim report goes to Marcus Webb (CIO) for management response before the final report is issued." }
+      ],
+      tasks:["Consolidate all findings from Weeks 3-6 in C/C/C/E/R format","Assign risk ratings (Critical / High / Medium / Low) to each finding","Draft management action plans for top 3 findings","Submit: Interim Audit Report (use TMPL-AUD-008)"],
+      days:7, artifacts:["TMPL-AUD-008","TMPL-AUD-005","TMPL-AUD-009"]
+    },
+    {
+      n:8, title:"Cybersecurity Review — Cloud",
+      desc:"Review AWS CloudTrail logs, analyse the S3 public access finding, and assess cloud security posture.",
+      learning:[
+        { heading:"What Is CloudTrail and Why It Matters", body:"AWS CloudTrail is a logging service that records every API call made in the AWS environment — who did what, when, from where, and whether it succeeded or failed. For IT auditors, CloudTrail is the primary evidence source for cloud security reviews. It answers questions like: who accessed sensitive S3 buckets, who assumed privileged IAM roles, and whether there was any anomalous activity outside normal business hours or from unusual locations." },
+        { heading:"The Anomalous Event", body:"In the CloudTrail export (AWS-CLOUDTRAIL in the Artifact Library), you will find a critical event: a service account called svc_api_connector assumed the AE-DBAdmin-Role — a highly privileged database administrator role — from a Tor exit node IP address at 2:17 AM on a Saturday. Tor is a network used to anonymise internet traffic and is commonly associated with malicious activity. This single event represents a potential account compromise and should be treated as a security incident until proven otherwise." },
+        { heading:"The S3 Public Access Finding", body:"Also in CloudTrail, you will see seven anonymous GetObject requests to the S3 bucket ae-mortgage-docs-legacy. Anonymous requests mean the bucket was publicly accessible — anyone on the internet could read the files. This was caused by a misconfiguration during a cloud migration by Derek Osei. Mortgage documents are Confidential under the Data Classification Policy (POL-DG-001) and must never be publicly accessible. This is both a policy violation and a potential data exposure requiring incident assessment." },
+        { heading:"The Vulnerability Scan", body:"Review the Vulnerability Scan Report (VULN-SCAN in the Artifact Library). You will find a critical vulnerability — CVE with a CVSS score of 9.8 — affecting 847 workstations running a vulnerable version of Microsoft Outlook. A CVSS score of 9.8 is at the top of the Critical range. Exploit code for this vulnerability is publicly available, meaning any attacker could use it. Under the Patch Management Policy (POL-SEC-005), Critical vulnerabilities must be patched within 7 days. Check how long this vulnerability has been outstanding." },
+        { heading:"Your Deliverable", body:"Complete a Cloud Security Review Workpaper documenting your CloudTrail analysis methodology, the anomalous IAM role assumption event (including the IP address, timestamp, role assumed, and your assessment of whether this is a confirmed or potential incident), the S3 public access finding, and the vulnerability scan findings. Use TMPL-AUD-004 as your workpaper base and TMPL-AUD-005 for any findings you draft." }
+      ],
+      tasks:["Analyse AWS CloudTrail export for anomalous events (AWS-CLOUDTRAIL)","Identify and document the Tor exit node IAM role assumption incident","Review S3 bucket public access configuration finding","Review vulnerability scan — identify and rate critical findings (VULN-SCAN)","Submit: Cloud Security Review Workpaper"],
+      days:7, artifacts:["AWS-CLOUDTRAIL","VULN-SCAN","POL-DG-001","POL-SEC-005","TMPL-AUD-004","TMPL-AUD-005","REF-004"]
+    },
+    {
+      n:9, title:"Cybersecurity Review — NIST CSF",
+      desc:"Complete NIST CSF maturity assessment for all five functions and the vulnerability management review.",
+      learning:[
+        { heading:"The NIST Cybersecurity Framework", body:"The NIST CSF organises cybersecurity activities into five functions: Identify (know what you have), Protect (implement safeguards), Detect (identify events as they occur), Respond (take action when detected), and Recover (restore systems after an event). Each function is scored on a 1-to-5 maturity scale. AuditEdge Corp's target is Level 3 (Defined) across all five functions — meaning processes are documented, standardised, and followed consistently." },
+        { heading:"Scoring the Five Functions", body:"Based on your work across all previous weeks, you now have the evidence to score each function. Identify: Review the IT Audit Universe and asset inventory — is it complete and current? Protect: Your access control and change management findings from Weeks 3 and 4 feed here. Detect: Assess the Splunk SIEM configuration and CloudTrail monitoring — the Tor exit node event was detected, but how quickly? Respond: Review the Incident Response Plan (REF-012) — has it been tested? Recover: The overdue DR test for the Mortgage Processing Application is a direct Recover gap." },
+        { heading:"The Incident Response Plan Assessment", body:"The Incident Response Plan (REF-012) must be reviewed against NIST CSF Respond (RS.RP) criteria. Key questions: Is the IRP documented and approved? Does it cover all relevant incident types (data breach, ransomware, insider threat, cloud compromise)? Has it been tested in the last 12 months? Are communication procedures documented including regulatory notification timelines? Check whether the CloudTrail anomaly you identified in Week 8 would have been handled correctly under the current IRP." },
+        { heading:"Maturity Scoring Guidance", body:"Level 1 (Initial): No formal processes, reactive. Level 2 (Developing): Some processes exist but inconsistent. Level 3 (Defined): Documented, standardised, consistently followed — this is AuditEdge Corp's target. Level 4 (Managed): Performance measured with KPIs. Level 5 (Optimising): Continuous improvement embedded. When scoring, be evidence-based — do not give Level 3 unless you have seen documented procedures being consistently followed. Your Week 3-8 findings provide the evidence base." },
+        { heading:"Your Deliverable", body:"Complete the NIST CSF Maturity Scoring Template (TMPL-AUD-007) for all five functions. For each function, state the current maturity level, the target level, the evidence supporting your current level score, the key gaps preventing a higher rating, and your recommendations. Also write a short summary paragraph for each function suitable for inclusion in the final Audit Committee briefing." }
+      ],
+      tasks:["Complete NIST CSF scoring for all 5 functions (use TMPL-AUD-007)","Review vulnerability scan — prioritise critical findings for remediation","Assess Incident Response Plan against NIST Respond and Recover criteria","Submit: NIST CSF Gap Assessment"],
+      days:7, artifacts:["TMPL-AUD-007","REF-012","REF-011","VULN-SCAN","AWS-CLOUDTRAIL","POL-SEC-004","POL-BCM-001"]
+    },
+    {
+      n:10, title:"Capstone — Audit Committee Briefing",
+      desc:"Synthesise the entire programme into a final Audit Committee briefing. Present your key findings and recommendations.",
+      learning:[
+        { heading:"What Is an Audit Committee Briefing?", body:"The Audit Committee is a subcommittee of the Board of Directors responsible for overseeing the company's financial reporting, internal controls, and audit function. They are not IT specialists — they are senior executives and independent directors who need to understand the significance of your findings without technical jargon. Your briefing must answer three questions: What did you find? How serious is it? What should be done about it?" },
+        { heading:"Structuring Your Briefing", body:"A strong Audit Committee briefing has five sections. First, an Executive Summary — one paragraph covering the overall conclusion of the engagement (e.g. 'Three high-risk findings were identified across logical access, change management, and cloud security, two of which are repeats from FY2023'). Second, the Scope — what was covered in 10 words or less per area. Third, a Findings Summary Table — all findings with severity, owner, and target remediation date. Fourth, Deep Dives on your top 3 findings — one slide each. Fifth, Overall Conclusion and Recommendations." },
+        { heading:"Presenting to Non-Technical Stakeholders", body:"Every finding must be translated into business impact. Do not say 'VPN certificates were not revoked for terminated employees.' Say 'Three former employees retained the ability to connect to AuditEdge Corp's corporate network after their employment ended, creating a risk of unauthorised access to customer data and financial systems.' The business impact — not the technical detail — is what the Audit Committee cares about. Lead with the risk, then explain the control failure." },
+        { heading:"Your Complete Portfolio", body:"Your Week 10 submission includes your entire programme portfolio: Planning Memo (Week 2), Logical Access TOE Workpaper (Week 3), Change Management TOE Workpaper (Week 4), SOC 2 Gap Analysis Parts 1 and 2 (Weeks 5 and 6), Interim Audit Report (Week 7), Cloud Security Review Workpaper (Week 8), NIST CSF Gap Assessment (Week 9), and your final Audit Committee Briefing. This is a complete IT audit engagement portfolio demonstrating competency across all major IT audit domains." },
+        { heading:"Your Deliverable", body:"Prepare your Audit Committee Briefing using TMPL-AUD-010. It should be no more than 10 slides or pages. Also complete your Portfolio Cover Memo (TMPL-AUD-010) listing all deliverables submitted across the 10 weeks with a one-sentence summary of each. Submit all portfolio documents together as your final Week 10 submission." }
+      ],
+      tasks:["Finalise all open workpapers and findings documentation","Prepare executive summary of all significant findings","Build Audit Committee briefing (use TMPL-AUD-010)","Complete Portfolio Cover Memo listing all 10 weeks of deliverables","Submit: Complete portfolio and Audit Committee Briefing"],
+      days:10, artifacts:["TMPL-AUD-010","TMPL-AUD-008","TMPL-AUD-005","PROG-001"]
+    }
+  ];
+}
 
 async function init() {
-  auth = await requireAuth(); if (!auth) return;
-  const { profile, user } = auth;
-  progress = await getProgress(user.id);
+  authCtx = await requireAuth();
+  if (!authCtx) return;
+  var profile = authCtx.profile, user = authCtx.user;
+  progress    = await getProgress(user.id);
   submissions = await getSubmissions(user.id);
-  const notifs = await getNotifications(user.id);
-  const unread = notifs.filter(n=>!n.read).length;
+  var notifs  = await getNotifications(user.id);
+  var unread  = notifs.filter(function(n){ return !n.read; }).length;
 
   document.getElementById('sidebarContainer').innerHTML = renderSidebar('modules', profile);
-  document.getElementById('topbarContainer').innerHTML = renderTopbar('Programme Weeks', profile, unread);
+  document.getElementById('topbarContainer').innerHTML  = renderTopbar('Programme Weeks', profile, unread);
+  renderNotifsPanel(notifs);
 
-  const params = new URLSearchParams(window.location.search);
-  const weekParam = parseInt(params.get('week'));
-  if (weekParam && weekParam >= 1 && weekParam <= 10) {
-    renderWeekDetail(weekParam, profile);
+  var params  = new URLSearchParams(window.location.search);
+  var weekParam = parseInt(params.get('week'));
+  if (weekParam >= 1 && weekParam <= 10) {
+    renderWeekDetail(weekParam);
   } else {
     renderAllWeeks();
   }
@@ -68,44 +208,47 @@ async function init() {
 }
 
 function renderAllWeeks() {
-  const weeks = weekData();
+  var weeks = weekContent();
   document.getElementById('pageBody').innerHTML = `
     <div style="margin-bottom:1.5rem">
       <h1 class="font-head" style="font-size:1.5rem;font-weight:800;margin-bottom:4px">Programme Weeks</h1>
       <p class="text-muted text-sm">10-week IT Audit Skillternship at AuditEdge Corp</p>
     </div>
     <div class="weeks-grid">
-      ${progress.map((p, i) => {
-        const w = weeks[i];
-        const badge = {locked:'badge-locked',available:'badge-available',in_progress:'badge-in_progress',completed:'badge-completed'}[p.status];
-        const label = {locked:'Locked',available:'Available',in_progress:'In Progress',completed:'Completed'}[p.status];
+      ${progress.map(function(p, i) {
+        var w = weeks[i];
+        var statusMap = {locked:'badge-locked',available:'badge-available',in_progress:'badge-in_progress',completed:'badge-completed'};
+        var labelMap  = {locked:'Locked',available:'Available',in_progress:'In Progress',completed:'Completed'};
         return `
         <a href="?week=${p.week_number}" class="week-card ${p.status}" ${p.status==='locked'?'onclick="return false"':''}>
           <div class="week-header">
-            <div><div class="week-num">WEEK ${String(p.week_number).padStart(2,'0')}</div><div class="week-title">${w?.title||''}</div></div>
-            <span class="week-badge ${badge}">${label}</span>
+            <div>
+              <div class="week-num">WEEK ${String(p.week_number).padStart(2,'0')}</div>
+              <div class="week-title">${w ? w.title : ''}</div>
+            </div>
+            <span class="week-badge ${statusMap[p.status]}">${labelMap[p.status]}</span>
           </div>
-          <div class="text-sm text-muted" style="line-height:1.5;margin-bottom:0.75rem">${w?.desc||''}</div>
-          ${p.score?`<span class="score-pill ${scoreClass(p.score)}">${p.score}%</span>`:''}
+          <div class="text-sm text-muted" style="line-height:1.5;margin-bottom:0.75rem">${w ? w.desc : ''}</div>
+          ${p.score ? `<span class="score-pill ${scoreClass(p.score)}">${p.score}%</span>` : ''}
           <div class="week-meta">
-            <span>${Icons.tasks} ${w?.tasks?.length||0} tasks</span>
-            <span>${Icons.clock} ${w?.days||7} days</span>
+            <span>${Icons.tasks} ${w ? w.tasks.length : 0} tasks</span>
+            <span>${Icons.clock} ${w ? w.days : 7} days</span>
           </div>
         </a>`;
       }).join('')}
     </div>`;
 }
 
-function renderWeekDetail(weekNum, profile) {
-  const weeks = weekData();
-  const w = weeks[weekNum-1];
-  const p = progress.find(r=>r.week_number===weekNum);
-  const weekSubs = submissions.filter(s=>s.week_number===weekNum);
-  activeWeek = weekNum;
+function renderWeekDetail(weekNum) {
+  var weeks   = weekContent();
+  var w       = weeks[weekNum - 1];
+  var p       = progress.find(function(r){ return r.week_number === weekNum; });
+  var weekSubs = submissions.filter(function(s){ return s.week_number === weekNum; });
+  activeWeek   = weekNum;
 
   if (!p || p.status === 'locked') {
     document.getElementById('pageBody').innerHTML = `
-      <a href="modules.html" class="btn btn-ghost btn-sm" style="margin-bottom:1.5rem">← Back</a>
+      <a href="modules.html" class="btn btn-ghost btn-sm" style="margin-bottom:1.5rem">← Back to all weeks</a>
       <div class="card" style="text-align:center;padding:3rem">
         <div style="font-size:3rem;margin-bottom:1rem">🔒</div>
         <h2 class="font-head" style="margin-bottom:0.5rem">Week ${weekNum} is locked</h2>
@@ -114,8 +257,30 @@ function renderWeekDetail(weekNum, profile) {
     return;
   }
 
-  const taskSubs = {};
-  weekSubs.forEach(s => taskSubs[s.task_id] = s);
+  var taskSubs = {};
+  weekSubs.forEach(function(s){ taskSubs[s.task_id] = s; });
+
+  var learningHTML = w.learning.map(function(section) {
+    return `
+    <div style="margin-bottom:1.5rem">
+      <h3 class="font-head" style="font-size:1rem;font-weight:700;color:var(--teal);margin-bottom:0.5rem">${section.heading}</h3>
+      <p style="font-size:0.9rem;line-height:1.75;color:var(--off)">${section.body}</p>
+    </div>`;
+  }).join('');
+
+  var artifactLinks = '';
+  if (w.artifacts && w.artifacts.length) {
+    artifactLinks = `
+    <div class="card" style="margin-bottom:1.5rem;border-color:rgba(75,158,255,0.2)">
+      <div class="card-title" style="margin-bottom:0.75rem">📂 Artifacts Used This Week</div>
+      <div style="display:flex;flex-wrap:wrap;gap:0.5rem">
+        ${w.artifacts.map(function(code) {
+          return `<a href="artifacts.html" class="filter-chip" style="font-family:var(--font-mono);font-size:0.75rem">${code}</a>`;
+        }).join('')}
+      </div>
+      <p class="text-muted text-xs" style="margin-top:0.75rem">Find these files in the Artifact Library. Open each one before attempting the tasks.</p>
+    </div>`;
+  }
 
   document.getElementById('pageBody').innerHTML = `
     <a href="modules.html" class="btn btn-ghost btn-sm" style="margin-bottom:1.5rem">← All Weeks</a>
@@ -127,92 +292,130 @@ function renderWeekDetail(weekNum, profile) {
         <div class="module-stat"><div class="module-stat-val">${w.tasks.length}</div><div class="module-stat-lbl">Tasks</div></div>
         <div class="module-stat"><div class="module-stat-val">${w.days}</div><div class="module-stat-lbl">Days</div></div>
         <div class="module-stat"><div class="module-stat-val">${weekSubs.length}</div><div class="module-stat-lbl">Submitted</div></div>
-        ${p.score?`<div class="module-stat"><div class="module-stat-val" style="color:var(--teal)">${p.score}%</div><div class="module-stat-lbl">Score</div></div>`:''}
+        ${p.score ? `<div class="module-stat"><div class="module-stat-val" style="color:var(--teal)">${p.score}%</div><div class="module-stat-lbl">Score</div></div>` : ''}
       </div>
     </div>
 
+    <!-- Learning Content -->
+    <div class="section-title" style="margin-bottom:1rem">${Icons.modules} Learning Content</div>
+    <div class="card" style="margin-bottom:1.5rem;padding:2rem">
+      ${learningHTML}
+    </div>
+
+    <!-- Artifacts for this week -->
+    ${artifactLinks}
+
+    <!-- Tasks -->
     <div class="section-title">${Icons.tasks} Tasks</div>
     <div class="tasks-list">
-      ${w.tasks.map((task, i) => {
-        const taskId = `w${weekNum}_t${i+1}`;
-        const sub = taskSubs[taskId];
-        const done = !!sub;
+      ${w.tasks.map(function(task, i) {
+        var taskId = 'w' + weekNum + '_t' + (i + 1);
+        var sub    = taskSubs[taskId];
+        var done   = !!sub;
         return `
         <div class="task-item">
-          <div class="task-check ${done?'done':''}">${done?Icons.check:''}</div>
+          <div class="task-check ${done ? 'done' : ''}">${done ? Icons.check : ''}</div>
           <div class="task-info">
             <div class="task-title">${task}</div>
-            ${sub ? `<div class="task-meta">Submitted ${timeAgo(sub.submitted_at)} · <span class="score-pill ${scoreClass(sub.score)}" style="font-size:0.72rem">${sub.status}</span></div>` : `<div class="task-meta text-muted">Not yet submitted</div>`}
-            ${sub?.feedback ? `<div style="margin-top:6px;padding:8px 12px;background:rgba(0,201,167,0.06);border-radius:6px;font-size:0.8rem;color:var(--teal)">💬 Feedback: ${sub.feedback}</div>` : ''}
+            ${sub
+              ? `<div class="task-meta">Submitted ${timeAgo(sub.submitted_at)}
+                   <span class="week-badge ${sub.status==='reviewed'?'badge-completed':sub.status==='needs_revision'?'badge-in_progress':'badge-available'}" style="margin-left:6px">${sub.status}</span>
+                 </div>`
+              : '<div class="task-meta text-muted">Not yet submitted</div>'}
+            ${sub && sub.feedback
+              ? `<div style="margin-top:6px;padding:8px 12px;background:rgba(0,201,167,0.06);border-left:3px solid var(--teal);border-radius:0 6px 6px 0;font-size:0.82rem">
+                   <strong style="color:var(--teal)">Feedback:</strong> ${sub.feedback}
+                 </div>`
+              : ''}
           </div>
           <div class="task-actions">
-            ${!done && p.status !== 'completed' ? `<button class="btn btn-ghost btn-sm" onclick="openTask('${taskId}','${task.replace(/'/g,"\\'")}')">Submit</button>` : ''}
-            ${sub?.file_url ? `<a href="${sub.file_url}" target="_blank" class="btn btn-ghost btn-sm">${Icons.external}</a>` : ''}
+            ${!done && p.status !== 'completed'
+              ? `<button class="btn btn-ghost btn-sm" onclick="openTask('w${weekNum}_t${i+1}', '${task.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">Submit</button>`
+              : ''}
+            ${sub && sub.file_url
+              ? `<a href="${sub.file_url}" target="_blank" class="btn btn-ghost btn-sm">${Icons.external}</a>`
+              : ''}
           </div>
         </div>`;
       }).join('')}
     </div>
 
-    ${p.status !== 'completed' ? `
-    <div class="card mt-3" style="border-color:rgba(0,201,167,0.2)">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem">
-        <div>
-          <div class="font-head font-bold" style="margin-bottom:4px">Mark week as complete?</div>
-          <div class="text-muted text-sm">Submit all tasks before marking complete. Your instructor will then review and score this week.</div>
-        </div>
-        <button class="btn btn-primary" style="width:auto;margin:0" onclick="markComplete(${weekNum})">Mark Complete ✓</button>
-      </div>
-    </div>` : `
-    <div class="card mt-3" style="border-color:rgba(61,214,140,0.3);background:rgba(61,214,140,0.05)">
-      <div class="text-green font-bold">✅ Week ${weekNum} completed ${timeAgo(p.completed_at)}</div>
-      ${weekNum < 10 ? `<a href="?week=${weekNum+1}" class="btn btn-ghost btn-sm" style="margin-top:0.75rem;display:inline-flex">Go to Week ${weekNum+1} →</a>` : `<a href="certificate.html" class="btn btn-gold btn-sm" style="margin-top:0.75rem;display:inline-flex">View Certificate →</a>`}
-    </div>`}
+    <!-- Mark Complete / Completed Banner -->
+    ${p.status !== 'completed'
+      ? `<div class="card mt-3" style="border-color:rgba(0,201,167,0.2)">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem">
+            <div>
+              <div class="font-head font-bold" style="margin-bottom:4px">Ready to mark complete?</div>
+              <div class="text-muted text-sm">Submit all tasks first. Your instructor will then review and score this week.</div>
+            </div>
+            <button class="btn btn-primary" style="width:auto;margin:0" onclick="markComplete(${weekNum})">Mark Complete ✓</button>
+          </div>
+         </div>`
+      : `<div class="card mt-3" style="border-color:rgba(61,214,140,0.3);background:rgba(61,214,140,0.05)">
+          <div class="text-green font-bold">✅ Week ${weekNum} completed ${timeAgo(p.completed_at)}</div>
+          ${weekNum < 10
+            ? `<a href="?week=${weekNum+1}" class="btn btn-ghost btn-sm" style="margin-top:0.75rem;display:inline-flex">Go to Week ${weekNum+1} →</a>`
+            : `<a href="certificate.html" class="btn btn-gold btn-sm" style="margin-top:0.75rem;display:inline-flex">View Certificate →</a>`}
+         </div>`}
   `;
 }
 
 function openTask(taskId, title) {
-  selectedTask = { id: taskId, title };
+  selectedTask = { id: taskId, title: title };
   document.getElementById('modalTaskTitle').textContent = title;
-  document.getElementById('modalTaskDesc').textContent = 'Submit your work for this task. You can paste your response, key findings, or provide a link to your file.';
-  document.getElementById('modalContent').value = '';
-  document.getElementById('modalFileUrl').value = '';
+  document.getElementById('modalContent').value  = '';
+  document.getElementById('modalFileUrl').value  = '';
   document.getElementById('taskModal').classList.add('open');
 }
 function closeModal() { document.getElementById('taskModal').classList.remove('open'); }
 
 async function submitTask() {
   if (!selectedTask) return;
-  const content = document.getElementById('modalContent').value.trim();
-  const fileUrl = document.getElementById('modalFileUrl').value.trim();
+  var content = document.getElementById('modalContent').value.trim();
+  var fileUrl = document.getElementById('modalFileUrl').value.trim();
   if (!content && !fileUrl) { toast('Please provide a response or file link.', 'error'); return; }
   try {
     await sb.from('submissions').upsert({
-      user_id: auth.user.id, week_number: activeWeek,
-      task_id: selectedTask.id, task_title: selectedTask.title,
-      content, file_url: fileUrl || null, status: 'submitted'
+      user_id:    authCtx.user.id,
+      week_number: activeWeek,
+      task_id:    selectedTask.id,
+      task_title: selectedTask.title,
+      content:    content,
+      file_url:   fileUrl || null,
+      status:     'submitted'
     }, { onConflict: 'user_id,week_number,task_id' });
-    // Mark week in_progress if available
-    const p = progress.find(r=>r.week_number===activeWeek);
-    if (p?.status === 'available') {
-      await sb.from('progress').update({ status: 'in_progress', started_at: new Date().toISOString() }).eq('user_id', auth.user.id).eq('week_number', activeWeek);
+
+    var p = progress.find(function(r){ return r.week_number === activeWeek; });
+    if (p && p.status === 'available') {
+      await sb.from('progress').update({
+        status:     'in_progress',
+        started_at: new Date().toISOString()
+      }).eq('user_id', authCtx.user.id).eq('week_number', activeWeek);
     }
+
     closeModal();
-    toast('Task submitted successfully!', 'success');
-    submissions = await getSubmissions(auth.user.id);
-    renderWeekDetail(activeWeek, auth.profile);
+    toast('Task submitted!', 'success');
+    submissions = await getSubmissions(authCtx.user.id);
+    progress    = await getProgress(authCtx.user.id);
+    renderWeekDetail(activeWeek);
   } catch(e) { toast(e.message, 'error'); }
 }
 
 async function markComplete(weekNum) {
   try {
-    await sb.from('progress').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('user_id', auth.user.id).eq('week_number', weekNum);
-    // Unlock next week
+    await sb.from('progress').update({
+      status:       'completed',
+      completed_at: new Date().toISOString()
+    }).eq('user_id', authCtx.user.id).eq('week_number', weekNum);
+
     if (weekNum < 10) {
-      await sb.from('progress').update({ status: 'available' }).eq('user_id', auth.user.id).eq('week_number', weekNum+1);
+      await sb.from('progress').update({ status: 'available' })
+        .eq('user_id', authCtx.user.id).eq('week_number', weekNum + 1);
     }
-    progress = await getProgress(auth.user.id);
+
+    progress = await getProgress(authCtx.user.id);
     toast('Week ' + weekNum + ' marked as complete!', 'success');
-    renderWeekDetail(weekNum, auth.profile);
+    renderWeekDetail(weekNum);
   } catch(e) { toast(e.message, 'error'); }
 }
 
